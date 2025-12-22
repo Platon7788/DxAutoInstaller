@@ -2,6 +2,18 @@
 
 **Version 1.0.0**
 
+## Screenshots
+
+<p align="center">
+  <img src="Images/DxAutoInstaller_main.png" alt="DxAutoInstaller - Install Tab" width="80%" />
+  <br><em>Install Tab / Вкладка установки</em>
+</p>
+
+<p align="center">
+  <img src="Images/DxAutoInstaller_unistall.png" alt="DxAutoInstaller - Uninstall Tab" width="80%" />
+  <br><em>Uninstall Tab / Вкладка удаления</em>
+</p>
+
 ---
 
 ## 🇬🇧 English
