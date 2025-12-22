@@ -1,0 +1,10 @@
+// Resource file for DxAutoInstaller C++ Edition
+
+// Profile INI
+PROFILE INI "Profile.ini"
+
+// Changelog
+README TXT "Readme.txt"
+
+// Application icon
+MAINICON ICON "DxAutoInstaller.ico"

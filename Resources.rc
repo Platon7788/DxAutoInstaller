@@ -1,0 +1,2 @@
+// Resource file for DxAutoInstaller C++ Edition
+PROFILE RCDATA "Resources\\Profile.ini"

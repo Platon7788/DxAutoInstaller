@@ -1,0 +1,50 @@
+DxAutoInstaller C++ Edition
+===========================
+
+Version: 1.0.0
+Copyright (c) 2025
+
+FREEWARE LICENSE
+
+This software is provided free of charge for personal and commercial use.
+
+AUTHORS
+-------
+- Original Delphi version: Delphier (https://github.com/Delphier/DxAutoInstaller)
+- C++ Edition: Platon (vteme777@gmail.com)
+
+TERMS AND CONDITIONS
+--------------------
+
+1. REDISTRIBUTION
+   You may freely distribute this software provided that:
+   - Both authors (Delphier and Platon) are credited
+   - This license file is included with the distribution
+   - The software is not sold for profit
+
+2. MODIFICATION
+   You may modify this software for personal use.
+   If you distribute modified versions, you must:
+   - Clearly indicate that changes were made
+   - Credit both original authors
+   - Include this license
+
+3. NO WARRANTY
+   THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+   
+   IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+   OR OTHER DEALINGS IN THE SOFTWARE.
+
+4. ACKNOWLEDGMENTS
+   The C++ Edition is based on the original Delphi version by Delphier.
+   Special thanks to Delphier for the original concept and architecture.
+
+CONTACT
+-------
+- Bug reports: https://github.com/Platon7788/DxAutoInstaller/issues
+- Email: vteme777@gmail.com
+- PayPal (donations): vteme777@gmail.com

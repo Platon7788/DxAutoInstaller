@@ -1,0 +1,33 @@
+# Build output
+Win32/
+Win64/
+Win64x/
+Debug/
+Release/
+
+# Compiled files
+*.o
+*.obj
+*.d
+*.map
+*.exe
+*.dll
+*.bpl
+*.dcp
+*.dcu
+*.res
+*.log
+
+# IDE files
+*.local
+*.identcache
+*.dsk
+*.stat
+__history/
+__recovery/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+ee.txt
