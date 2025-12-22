@@ -51,9 +51,11 @@ When "Install to C++Builder" is enabled with Win64 compilation:
 
 ### 🛠️ Building
 
-1. Open `DxAutoInstallerCpp.cbproj` in RAD Studio 12+
+1. Open `DxAutoInstaller.cbproj` in RAD Studio 12+
 2. Select Win64 Modern (Clang) platform
 3. Build
+
+**Tested:** Successfully built and tested with RAD Studio 13 Florence, Win64 Modern (x64 Clang) platform.
 
 ### 🐛 Bug Reports
 
@@ -110,9 +112,11 @@ This will help improve the program in future versions. Create an Issue on GitHub
 
 ### 🛠️ Сборка
 
-1. Откройте `DxAutoInstallerCpp.cbproj` в RAD Studio 12+
+1. Откройте `DxAutoInstaller.cbproj` в RAD Studio 12+
 2. Выберите платформу Win64 Modern (Clang)
 3. Build
+
+**Проверено:** Успешно собрано и протестировано в RAD Studio 13 Florence, платформа Win64 Modern (x64 Clang).
 
 ### 🐛 Сообщения об ошибках
 
