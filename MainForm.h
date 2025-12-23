@@ -125,7 +125,7 @@ private:
     void InitializeProfileInfo();
     void RefreshIDEList();
     void RefreshComponentList();
-    void RunInstaller(bool install);
+    void RunInstaller();
     void UpdateControlStates();
     void UpdateOptionsForSelectedIDE();
     void SaveOptionsForSelectedIDE();

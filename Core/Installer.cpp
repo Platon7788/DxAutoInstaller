@@ -1035,10 +1035,6 @@ void TInstaller::CompilePackage(const TIDEInfoPtr& ide,
     options.NativeLookAndFeel = instOpts.count(TInstallOption::NativeLookAndFeel) > 0;
     options.GenerateCppFiles = instOpts.count(TInstallOption::GenerateCppFiles) > 0;
     
-    // Get IDE bitness options for later use in registration
-    bool useBothIDE = instOpts.count(TInstallOption::UseBothIDE) > 0;
-    bool use64BitIDE = instOpts.count(TInstallOption::Use64BitIDE) > 0;
-    
     // Ensure output directories exist
     if (!options.BPLOutputDir.IsEmpty())
         ForceDirectories(options.BPLOutputDir);

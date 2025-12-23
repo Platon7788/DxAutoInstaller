@@ -417,7 +417,7 @@ std::vector<DxCore::TIDEInfoPtr> TfrmMain::GetSelectedIDEs(TCheckListBox* checkL
 }
 
 //---------------------------------------------------------------------------
-void TfrmMain::RunInstaller(bool install)
+void TfrmMain::RunInstaller()
 {
     SaveOptionsForSelectedIDE();
     
@@ -427,7 +427,7 @@ void TfrmMain::RunInstaller(bool install)
         return;
     }
     
-    auto ides = GetSelectedIDEs(install ? CheckListIDEs : CheckListUninstall);
+    auto ides = GetSelectedIDEs(CheckListIDEs);
     if (ides.empty())
     {
         ShowMessage(L"Please select at least one IDE.");
@@ -438,11 +438,7 @@ void TfrmMain::RunInstaller(bool install)
     try
     {
         FProgressForm->Initialize();
-        
-        if (install)
-            FInstaller->Install(ides);
-        else
-            FInstaller->Uninstall(ides);
+        FInstaller->Install(ides);
     }
     __finally
     {
@@ -459,7 +455,7 @@ void __fastcall TfrmMain::ActInstallExecute(TObject *Sender)
         return;
     }
     
-    RunInstaller(true);
+    RunInstaller();
 }
 
 //---------------------------------------------------------------------------
