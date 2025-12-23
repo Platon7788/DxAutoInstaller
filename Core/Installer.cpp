@@ -597,6 +597,19 @@ void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
     DeleteDevExpressFilesFromDir(dcpDir32, dcpExtensions);
     DeleteDevExpressFilesFromDir(dcpDir64, dcpExtensions);
     DeleteDevExpressFilesFromDir(dcpDir64x, dcpExtensions);
+    
+    // Cleanup HPP directories (compiler writes .hpp here by default)
+    // Path: C:\Users\Public\Documents\Embarcadero\Studio\{ver}\hpp\{platform}
+    std::set<String> hppExtensions;
+    hppExtensions.insert(L".hpp");
+    
+    String hppDir32 = ide->GetHPPOutputPath(TIDEPlatform::Win32);
+    String hppDir64 = ide->GetHPPOutputPath(TIDEPlatform::Win64);
+    String hppDir64x = ide->GetHPPOutputPath(TIDEPlatform::Win64Modern);
+    
+    DeleteDevExpressFilesFromDir(hppDir32, hppExtensions);
+    DeleteDevExpressFilesFromDir(hppDir64, hppExtensions);
+    DeleteDevExpressFilesFromDir(hppDir64x, hppExtensions);
 }
 
 void TInstaller::DeleteDevExpressFilesFromDir(const String& dir, const std::set<String>& extensions)
