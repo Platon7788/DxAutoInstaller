@@ -474,25 +474,23 @@ void TInstaller::CopySourceFilesFiltered(const String& sourceDir, const String& 
             String srcPath = sourceDir + L"\\" + sr.Name;
             String dstPath = destDir + L"\\" + sr.Name;
             
+            // Skip directories - don't copy subdirectories like "Icon Library"
+            // They remain in original location and are added to browsing path instead
             if ((sr.Attr & faDirectory) != 0)
+                continue;
+            
+            // If extensions set is empty, copy all files
+            // Otherwise, only copy files with matching extensions
+            if (extensions.empty())
             {
-                CopySourceFilesFiltered(srcPath, dstPath, extensions);
+                CopyFile(srcPath.c_str(), dstPath.c_str(), FALSE);
             }
             else
             {
-                // If extensions set is empty, copy all files
-                // Otherwise, only copy files with matching extensions
-                if (extensions.empty())
+                String ext = ExtractFileExt(sr.Name).LowerCase();
+                if (extensions.count(ext) > 0)
                 {
                     CopyFile(srcPath.c_str(), dstPath.c_str(), FALSE);
-                }
-                else
-                {
-                    String ext = ExtractFileExt(sr.Name).LowerCase();
-                    if (extensions.count(ext) > 0)
-                    {
-                        CopyFile(srcPath.c_str(), dstPath.c_str(), FALSE);
-                    }
                 }
             }
         } while (FindNext(sr) == 0);
@@ -751,7 +749,7 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
     // ========================================
     // Phase 1: Copy source files to Library\Sources ONLY
     // Compiled files (.dcu, .hpp, etc.) go to Library\{ver}\* during compilation
-    // Only .dfm and .res files need to be in Library\{ver}\* for compiler
+    // Only .dfm, .res and .dcr files need to be in Library\{ver}\* for compiler
     // ========================================
     
     // Define extensions for source files (go to Library\Sources)
@@ -761,11 +759,13 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
     sourceExtensions.insert(L".dfm");
     sourceExtensions.insert(L".fmx");
     sourceExtensions.insert(L".res");
+    sourceExtensions.insert(L".dcr");  // Component resource files (palette icons)
     
     // Define extensions for resource files (needed in Library\{ver}\* for compiler)
     std::set<String> resourceExtensions;
     resourceExtensions.insert(L".dfm");
     resourceExtensions.insert(L".res");
+    resourceExtensions.insert(L".dcr");  // Component resource files (palette icons)
     
     for (const auto& comp : components)
     {
@@ -892,12 +892,21 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
     // Phase 3: Add library paths
     // Based on IDE bitness - add paths only for compiled platforms
     // ========================================
+    
+    // Add Icon Library path to browsing path (icons are not copied, just referenced)
+    String iconLibraryDir = FInstallFileDir + L"\\ExpressLibrary\\Sources\\Icon Library";
+    bool hasIconLibrary = DirectoryExists(iconLibraryDir);
+    
     if (compileWin32)
     {
         String libDir = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win32);
         AddToLibraryPath(ide, TIDEPlatform::Win32, libDir, false);
         if (opts.count(TInstallOption::AddBrowsingPath) > 0)
+        {
             AddToLibraryPath(ide, TIDEPlatform::Win32, installSourcesDir, true);
+            if (hasIconLibrary)
+                AddToLibraryPath(ide, TIDEPlatform::Win32, iconLibraryDir, true);
+        }
         else
             AddToLibraryPath(ide, TIDEPlatform::Win32, installSourcesDir, false);
     }
@@ -907,7 +916,11 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
         String libDir = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64);
         AddToLibraryPath(ide, TIDEPlatform::Win64, libDir, false);
         if (opts.count(TInstallOption::AddBrowsingPath) > 0)
+        {
             AddToLibraryPath(ide, TIDEPlatform::Win64, installSourcesDir, true);
+            if (hasIconLibrary)
+                AddToLibraryPath(ide, TIDEPlatform::Win64, iconLibraryDir, true);
+        }
         else
             AddToLibraryPath(ide, TIDEPlatform::Win64, installSourcesDir, false);
         
@@ -918,7 +931,11 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
             String libDir64x = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64Modern);
             AddToLibraryPath(ide, TIDEPlatform::Win64Modern, libDir64x, false);
             if (opts.count(TInstallOption::AddBrowsingPath) > 0)
+            {
                 AddToLibraryPath(ide, TIDEPlatform::Win64Modern, installSourcesDir, true);
+                if (hasIconLibrary)
+                    AddToLibraryPath(ide, TIDEPlatform::Win64Modern, iconLibraryDir, true);
+            }
             else
                 AddToLibraryPath(ide, TIDEPlatform::Win64Modern, installSourcesDir, false);
         }
@@ -1227,12 +1244,14 @@ void TInstaller::UninstallIDE(const TIDEInfoPtr& ide)
         
     // Remove library paths for all platforms
     String sourcesDir = GetInstallSourcesDir(prevInstallDir);
+    String iconLibraryDir = prevInstallDir + L"\\ExpressLibrary\\Sources\\Icon Library";
     
     // Win32
     String libDir = GetInstallLibraryDir(prevInstallDir, ide, TIDEPlatform::Win32);
     RemoveFromLibraryPath(ide, TIDEPlatform::Win32, libDir, false);
     RemoveFromLibraryPath(ide, TIDEPlatform::Win32, sourcesDir, false);
     RemoveFromLibraryPath(ide, TIDEPlatform::Win32, sourcesDir, true);
+    RemoveFromLibraryPath(ide, TIDEPlatform::Win32, iconLibraryDir, true);
     
     // Win64
     if (ide->SupportsWin64)
@@ -1241,6 +1260,7 @@ void TInstaller::UninstallIDE(const TIDEInfoPtr& ide)
         RemoveFromLibraryPath(ide, TIDEPlatform::Win64, libDir, false);
         RemoveFromLibraryPath(ide, TIDEPlatform::Win64, sourcesDir, false);
         RemoveFromLibraryPath(ide, TIDEPlatform::Win64, sourcesDir, true);
+        RemoveFromLibraryPath(ide, TIDEPlatform::Win64, iconLibraryDir, true);
     }
     
     // Win64 Modern
@@ -1250,6 +1270,7 @@ void TInstaller::UninstallIDE(const TIDEInfoPtr& ide)
         RemoveFromLibraryPath(ide, TIDEPlatform::Win64Modern, libDir, false);
         RemoveFromLibraryPath(ide, TIDEPlatform::Win64Modern, sourcesDir, false);
         RemoveFromLibraryPath(ide, TIDEPlatform::Win64Modern, sourcesDir, true);
+        RemoveFromLibraryPath(ide, TIDEPlatform::Win64Modern, iconLibraryDir, true);
     }
     
     SetEnvironmentVariable(ide, DX_ENV_VARIABLE, L"");
