@@ -578,10 +578,12 @@ void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
     
     String bplDir32 = ide->GetBPLOutputPath(TIDEPlatform::Win32);
     String bplDir64 = ide->GetBPLOutputPath(TIDEPlatform::Win64);
+    String bplDir64x = ide->GetBPLOutputPath(TIDEPlatform::Win64Modern);
     
     // Only delete DevExpress files from BPL dirs
     DeleteDevExpressFilesFromDir(bplDir32, bplExtensions);
     DeleteDevExpressFilesFromDir(bplDir64, bplExtensions);
+    DeleteDevExpressFilesFromDir(bplDir64x, bplExtensions);
     
     // Cleanup DCP directories
     // We create: .dcp (via -LN), .bpi (via -NB), .obj (via -NO)
