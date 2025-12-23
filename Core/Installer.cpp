@@ -1027,15 +1027,18 @@ void TInstaller::InstallPackage(const TIDEInfoPtr& ide,
     options.BPLOutputDir = ide->GetBPLOutputPath(platform);
     options.DCPOutputDir = ide->GetDCPOutputPath(platform);
     options.UnitOutputDir = GetInstallLibraryDir(FInstallFileDir, ide, platform);
+    options.HppOutputDir = ide->GetHPPOutputPath(platform);  // Public hpp folder
     
     LogToFile(L"  BPLOutputDir: [" + options.BPLOutputDir + L"]");
     LogToFile(L"  DCPOutputDir: [" + options.DCPOutputDir + L"]");
     LogToFile(L"  UnitOutputDir: [" + options.UnitOutputDir + L"]");
+    LogToFile(L"  HppOutputDir: [" + options.HppOutputDir + L"]");
     
     // Debug output - show paths
     UpdateProgressState(L"BPL Output: " + options.BPLOutputDir);
     UpdateProgressState(L"DCP Output: " + options.DCPOutputDir);
     UpdateProgressState(L"Unit Output: " + options.UnitOutputDir);
+    UpdateProgressState(L"HPP Output: " + options.HppOutputDir);
     
     // Safety check - all paths must be valid
     if (options.BPLOutputDir.IsEmpty() || options.DCPOutputDir.IsEmpty() || options.UnitOutputDir.IsEmpty())
@@ -1065,6 +1068,8 @@ void TInstaller::InstallPackage(const TIDEInfoPtr& ide,
         ForceDirectories(options.DCPOutputDir);
     if (!options.UnitOutputDir.IsEmpty())
         ForceDirectories(options.UnitOutputDir);
+    if (!options.HppOutputDir.IsEmpty() && options.GenerateCppFiles)
+        ForceDirectories(options.HppOutputDir);
     
     // Compile
     TCompileResult result = FCompiler->Compile(ide, platform, options);
