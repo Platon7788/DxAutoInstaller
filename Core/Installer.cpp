@@ -546,9 +546,9 @@ void TInstaller::CleanupLibraryDir(const TIDEInfoPtr& ide, TIDEPlatform platform
     UpdateProgressState(L"Cleaning: " + libDir);
     
     // Extensions to delete from library directories
+    // Note: .hpp files are NOT in library dir - they go to public hpp folder
     std::set<String> compiledExtensions;
     compiledExtensions.insert(L".dcu");   // Delphi compiled units
-    compiledExtensions.insert(L".hpp");   // C++ headers
     compiledExtensions.insert(L".obj");   // Object files
     compiledExtensions.insert(L".o");     // Object files (Clang)
     compiledExtensions.insert(L".a");     // Import libraries (Win64x)
@@ -1082,28 +1082,18 @@ void TInstaller::InstallPackage(const TIDEInfoPtr& ide,
             }
         }
         
-        // Copy .hpp files to Win64x folder for C++Builder Modern support
-        // When compiling Win64 with -JL, also copy hpp to Win64x folder
-        // and generate .a import libraries for Modern C++ using mkexp
+        // Win64x (Modern C++) support for C++Builder
+        // When compiling Win64 with -JL, generate support files for Win64x:
+        // - .bpi files are copied from Win64 DCP dir to Win64x DCP dir
+        // - .a import libraries are generated using mkexp.exe from .bpl
+        // Note: .hpp files are NOT copied - compiler writes them to public directory
+        //       (C:\Users\Public\...\hpp\Win64x) which is shared for all platforms
         if (platform == TIDEPlatform::Win64 && options.GenerateCppFiles)
         {
             String win64xLibDir = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64Modern);
             if (!win64xLibDir.IsEmpty())
             {
                 ForceDirectories(win64xLibDir);
-                
-                // Copy all .hpp files from Win64 to Win64x (headers are identical)
-                TSearchRec sr;
-                if (FindFirst(options.UnitOutputDir + L"\\*.hpp", faAnyFile, sr) == 0)
-                {
-                    do
-                    {
-                        String srcHpp = options.UnitOutputDir + L"\\" + sr.Name;
-                        String dstHpp = win64xLibDir + L"\\" + sr.Name;
-                        CopyFile(srcHpp.c_str(), dstHpp.c_str(), FALSE);
-                    } while (FindNext(sr) == 0);
-                    FindClose(sr);
-                }
                 
                 // Copy .bpi files from Win64 DCP dir to Win64x DCP dir
                 // BPI files are needed for C++Builder linking

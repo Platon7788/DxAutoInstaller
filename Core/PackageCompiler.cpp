@@ -173,8 +173,10 @@ String TPackageCompiler::BuildCommandLine(const TIDEInfoPtr& ide,
             cmd = cmd + L" " + CompilerOptions::OBJ_OUTPUT_DIR + L"\"" + options.DCPOutputDir + L"\"";
         }
         
-        if (!options.UnitOutputDir.IsEmpty())
-            cmd = cmd + L" " + CompilerOptions::HPP_OUTPUT_DIR + L"\"" + options.UnitOutputDir + L"\"";
+        // Note: We don't specify -NH (HPP output dir) because compiler writes
+        // .hpp files to the default public directory (C:\Users\Public\...\hpp\*)
+        // which is the standard location for C++Builder headers.
+        // This avoids duplicating .hpp files in DevExpress Library folder.
     }
     
     return cmd;
