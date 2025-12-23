@@ -58,30 +58,27 @@ __published:
     
     // IDE Options group
     TGroupBox *GroupIDEOptions;
-    TRadioButton *RadioIDE32;
-    TRadioButton *RadioIDE64;
-    TCheckBox *ChkIDEBoth;
+    TCheckBox *ChkIDE32;
+    TCheckBox *ChkIDE64;
     TLabel *LblIDEType;
     
     // Target platforms group
     TGroupBox *GroupTargets;
     TCheckBox *ChkTargetWin32;
     TCheckBox *ChkTargetWin64;
-    TCheckBox *ChkTargetWin64Modern;
     
     // Other options
     TGroupBox *GroupOtherOptions;
     TCheckBox *ChkNativeLookAndFeel;
-    TCheckBox *ChkInstallCpp;
+    TCheckBox *ChkGenerateCpp;
     TCheckBox *ChkHideBase;
     
     // Uninstall tab
     TLabel *LblSelectIDE;
     TCheckListBox *CheckListUninstall;
     TGroupBox *GroupUninstallOptions;
-    TRadioButton *RadioUninstall32;
-    TRadioButton *RadioUninstall64;
-    TCheckBox *ChkUninstallBoth;
+    TCheckBox *ChkUninstall32;
+    TCheckBox *ChkUninstall64;
     
     // Tools tab
     TGroupBox *GroupProfile;
@@ -115,10 +112,8 @@ __published:
     void __fastcall ChkHideBaseClick(TObject *Sender);
     void __fastcall CheckListIDEsClick(TObject *Sender);
     void __fastcall CheckListComponentsClickCheck(TObject *Sender);
-    void __fastcall RadioIDETypeClick(TObject *Sender);
+    void __fastcall ChkIDE64Click(TObject *Sender);
     void __fastcall TargetCheckBoxClick(TObject *Sender);
-    void __fastcall ChkUninstallBothClick(TObject *Sender);
-    void __fastcall ChkIDEBothClick(TObject *Sender);
     
 private:
     std::unique_ptr<DxCore::TInstaller> FInstaller;

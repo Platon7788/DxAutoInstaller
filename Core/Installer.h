@@ -46,29 +46,53 @@ namespace DxCore
 //---------------------------------------------------------------------------
 // Install options
 //
-// IDE Type determines design-time package compilation:
-// - 32-bit IDE: design-time compiled with dcc32, output to bin/
-// - 64-bit IDE: design-time compiled with dcc64, output to bin64/
+// Design-time packages must match IDE bitness:
+// - 32-bit IDE loads BPLs from Bpl\, registered in "Known Packages"
+// - 64-bit IDE loads BPLs from Bpl\Win64\, registered in "Known Packages x64"
 //
-// Target platforms determine runtime library compilation:
-// - CompileWin32Runtime: compile with dcc32 for Win32 target
-// - CompileWin64Runtime: compile with dcc64 for Win64 target
-// - CompileWin64ModernRuntime: DEPRECATED - not used (no dcc64x for Delphi)
-//   Win64x support is automatic when InstallToCppBuilder + CompileWin64Runtime
+// Runtime packages are compiled for target platforms (independent of IDE bitness):
+// - Win32: compiled with dcc32, used when building Win32 applications
+// - Win64: compiled with dcc64, used when building Win64 applications
+// - Win64x: NOT compiled (no dcc64x), artifacts generated from Win64 via mkexp
+//
+// C++Builder support:
+// - When GenerateCppFiles is enabled, -JL flag generates .hpp, .bpi, .lib
+// - For Win64x (Modern C++), .hpp/.bpi are copied from Win64, .a generated via mkexp
 //---------------------------------------------------------------------------
 enum class TInstallOption
 {
-    AddBrowsingPath,
-    NativeLookAndFeel,
-    CompileWin32Runtime,        // Compile runtime for Win32 target
-    CompileWin64Runtime,        // Compile runtime for Win64 target
-    CompileWin64ModernRuntime,  // DEPRECATED: Win64x is auto-generated from Win64
-    InstallToCppBuilder,        // Generate C++ headers/libs (enables Win64x support)
-    Use64BitIDE,                // IDE runs as 64-bit (design-time via dcc64)
-    UseBothIDE                  // Install for both 32-bit and 64-bit IDE
+    // Design-time registration (which IDE bitness to support)
+    RegisterFor32BitIDE,        // Register design-time packages for 32-bit IDE (always enabled)
+    RegisterFor64BitIDE,        // Register design-time packages for 64-bit IDE (optional)
+    
+    // Runtime compilation (which target platforms to support)
+    CompileWin32Runtime,        // Compile runtime packages for Win32 target
+    CompileWin64Runtime,        // Compile runtime packages for Win64 target
+    
+    // C++Builder support
+    GenerateCppFiles,           // Generate .hpp/.bpi/.lib (and .a for Win64x via mkexp)
+    
+    // Other options
+    AddBrowsingPath,            // Add source paths to IDE browsing path
+    NativeLookAndFeel           // Use native look and feel as default skin
 };
 
 typedef std::set<TInstallOption> TInstallOptionSet;
+
+//---------------------------------------------------------------------------
+// Uninstall options - which IDE registrations to remove
+//---------------------------------------------------------------------------
+struct TUninstallOptions
+{
+    bool Uninstall32BitIDE;     // Remove from 32-bit IDE (Known Packages)
+    bool Uninstall64BitIDE;     // Remove from 64-bit IDE (Known Packages x64)
+    bool DeleteCompiledFiles;   // Delete all compiled files (.bpl, .dcp, .dcu, etc.)
+    
+    TUninstallOptions() 
+        : Uninstall32BitIDE(true), 
+          Uninstall64BitIDE(false),
+          DeleteCompiledFiles(true) {}
+};
 
 //---------------------------------------------------------------------------
 // Installer state
@@ -117,7 +141,7 @@ private:
     TProgressCallback FOnProgress;
     TProgressStateCallback FOnProgressState;
     
-    // Internal methods
+    // Internal methods - Setup
     void DoSetInstallFileDir(const String& value);
     void DetectThirdPartyComponents(const TIDEInfoPtr& ide);
     void BuildComponentList(const TIDEInfoPtr& ide);
@@ -125,19 +149,28 @@ private:
                            const String& pkgBaseName, 
                            const String& ideSuffix);
     
+    // Internal methods - Installation
     void InstallIDE(const TIDEInfoPtr& ide);
-    void InstallPackage(const TIDEInfoPtr& ide, 
+    void CopyAllSourcesToLibrary();
+    void CopyResourcesToLibraryDir(const TIDEInfoPtr& ide, TIDEPlatform platform);
+    void CompileAllPackages(const TIDEInfoPtr& ide, TIDEPlatform platform);
+    void CompilePackage(const TIDEInfoPtr& ide, 
                         TIDEPlatform platform,
                         const TComponentPtr& component,
-                        const TPackagePtr& package,
-                        bool isDesignTime);
-                        
-    void UninstallIDE(const TIDEInfoPtr& ide);
-    void UninstallPackage(const TIDEInfoPtr& ide,
-                          TIDEPlatform platform,
-                          const TComponentProfilePtr& component,
-                          const String& packageBaseName);
+                        const TPackagePtr& package);
+    void RegisterDesignTimePackages(const TIDEInfoPtr& ide, 
+                                     TIDEPlatform platform,
+                                     bool for32BitIDE, 
+                                     bool for64BitIDE);
+    void GenerateWin64xArtifacts(const TIDEInfoPtr& ide);
     
+    // Internal methods - Uninstallation  
+    void UninstallIDE(const TIDEInfoPtr& ide, const TUninstallOptions& opts);
+    void DeletePackageFiles(const TIDEInfoPtr& ide, TIDEPlatform platform);
+    void CleanupLibraryDir(const TIDEInfoPtr& ide, TIDEPlatform platform);
+    void CleanupAllCompiledFiles(const TIDEInfoPtr& ide);
+    
+    // Progress callbacks
     void UpdateProgress(const TIDEInfoPtr& ide,
                         const TComponentProfilePtr& component,
                         const String& task,
@@ -149,6 +182,8 @@ private:
     void SetState(TInstallerState value);
     
     // Registry helpers
+    void AddLibraryPaths(const TIDEInfoPtr& ide, TIDEPlatform platform);
+    void RemoveLibraryPaths(const TIDEInfoPtr& ide, TIDEPlatform platform);
     void AddToLibraryPath(const TIDEInfoPtr& ide, 
                           TIDEPlatform platform,
                           const String& path,
@@ -181,8 +216,6 @@ private:
                                   const std::set<String>& extensions);
     void DeleteCompiledFiles(const String& dir, const std::set<String>& extensions);
     void DeleteDevExpressFilesFromDir(const String& dir, const std::set<String>& extensions);
-    void CleanupLibraryDir(const TIDEInfoPtr& ide, TIDEPlatform platform);
-    void CleanupAllCompiledFiles(const TIDEInfoPtr& ide);
     
 public:
     TInstaller();
@@ -213,7 +246,7 @@ public:
     
     // Install/Uninstall
     void Install(const std::vector<TIDEInfoPtr>& ides);
-    void Uninstall(const std::vector<TIDEInfoPtr>& ides);
+    void Uninstall(const std::vector<TIDEInfoPtr>& ides, const TUninstallOptions& uninstallOpts);
     void Stop();
     
     // Search for new packages not in profile
@@ -235,13 +268,13 @@ public:
 //---------------------------------------------------------------------------
 namespace InstallOptionNames
 {
-    const wchar_t* const AddBrowsingPath = L"Add Browsing Path";
-    const wchar_t* const NativeLookAndFeel = L"Use Native Look and Feel as Default";
+    const wchar_t* const RegisterFor32BitIDE = L"32-bit IDE (design-time packages)";
+    const wchar_t* const RegisterFor64BitIDE = L"64-bit IDE (design-time packages)";
     const wchar_t* const CompileWin32Runtime = L"Compile Win32 Runtime Libraries";
     const wchar_t* const CompileWin64Runtime = L"Compile Win64 Runtime Libraries";
-    const wchar_t* const CompileWin64ModernRuntime = L"Compile Win64 Modern (Clang) Libraries";
-    const wchar_t* const InstallToCppBuilder = L"Install to C++Builder (generate .hpp)";
-    const wchar_t* const Use64BitIDE = L"64-bit IDE (design-time packages)";
+    const wchar_t* const GenerateCppFiles = L"Generate C++ files (.hpp/.bpi/.a)";
+    const wchar_t* const AddBrowsingPath = L"Add Browsing Path";
+    const wchar_t* const NativeLookAndFeel = L"Use Native Look and Feel as Default";
 }
 
 } // namespace DxCore
