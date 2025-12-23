@@ -1197,17 +1197,11 @@ void TInstaller::UninstallIDE(const TIDEInfoPtr& ide)
     LogToFile(L"=== UninstallIDE: " + ide->Name + L" ===");
     UpdateProgressState(L"Uninstalling from " + ide->Name);
     
-    // Get the IDE bitness option to know which registry key to clean
-    TInstallOptionSet opts = GetOptions(ide);
-    bool useBothIDE = opts.count(TInstallOption::UseBothIDE) > 0;
-    bool use64BitIDE = opts.count(TInstallOption::Use64BitIDE) > 0;
-    
-    // Remove DevExpress packages from the appropriate Known Packages registry
-    // For "Both IDE" mode: clean both registry keys
-    if (useBothIDE || !use64BitIDE)
-        UnregisterAllDevExpressPackages(ide, false);  // 32-bit IDE
-    if (useBothIDE || use64BitIDE)
-        UnregisterAllDevExpressPackages(ide, true);   // 64-bit IDE
+    // ALWAYS clean BOTH registry keys during uninstall
+    // We don't know which IDE bitness was used during previous installation
+    // So we must clean both "Known Packages" (32-bit) and "Known Packages x64" (64-bit)
+    UnregisterAllDevExpressPackages(ide, false);  // 32-bit IDE (Known Packages)
+    UnregisterAllDevExpressPackages(ide, true);   // 64-bit IDE (Known Packages x64)
     
     // Get previous install directory before clearing it
     String prevInstallDir = GetEnvironmentVariable(ide, DX_ENV_VARIABLE);
@@ -1580,34 +1574,17 @@ void TInstaller::UnregisterAllDevExpressPackages(const TIDEInfoPtr& ide, bool is
             String lowerName = valueName.LowerCase();
             
             // Check if this is a DevExpress package
-            // DevExpress packages typically contain: dx, cx, dcldx, dclcx
-            if (lowerName.Pos(L"\\dx") > 0 || 
-                lowerName.Pos(L"\\cx") > 0 ||
-                lowerName.Pos(L"\\dcldx") > 0 ||
-                lowerName.Pos(L"\\dclcx") > 0 ||
-                lowerName.Pos(L"dxcore") > 0 ||
-                lowerName.Pos(L"cxlibrary") > 0 ||
-                lowerName.Pos(L"dxskin") > 0 ||
-                lowerName.Pos(L"dxbar") > 0 ||
-                lowerName.Pos(L"dxribbon") > 0 ||
-                lowerName.Pos(L"dxlayout") > 0 ||
-                lowerName.Pos(L"dxspreadsheet") > 0 ||
-                lowerName.Pos(L"dxrichedit") > 0 ||
-                lowerName.Pos(L"dxpdf") > 0 ||
-                lowerName.Pos(L"dxgantt") > 0 ||
-                lowerName.Pos(L"dxmap") > 0 ||
-                lowerName.Pos(L"dxchart") > 0 ||
-                lowerName.Pos(L"dxgauge") > 0 ||
-                lowerName.Pos(L"dxps") > 0 ||
-                lowerName.Pos(L"dxflowchart") > 0 ||
-                lowerName.Pos(L"dxorgchart") > 0 ||
-                lowerName.Pos(L"dxtree") > 0 ||
-                lowerName.Pos(L"cxgrid") > 0 ||
-                lowerName.Pos(L"cxscheduler") > 0 ||
-                lowerName.Pos(L"cxpivot") > 0 ||
-                lowerName.Pos(L"cxvgrid") > 0 ||
-                lowerName.Pos(L"cxtreelist") > 0 ||
-                lowerName.Pos(L"cxedit") > 0)
+            // DevExpress packages start with: dx, cx, dcldx, dclcx
+            // We check for these prefixes in the filename part of the path
+            String fileName = ExtractFileName(valueName).LowerCase();
+            
+            bool isDevExpress = 
+                fileName.Pos(L"dx") == 1 ||       // dxCore, dxBar, etc.
+                fileName.Pos(L"cx") == 1 ||       // cxGrid, cxEdit, etc.
+                fileName.Pos(L"dcldx") == 1 ||    // design-time dx packages
+                fileName.Pos(L"dclcx") == 1;      // design-time cx packages
+            
+            if (isDevExpress)
             {
                 toRemove->Add(valueName);
             }
