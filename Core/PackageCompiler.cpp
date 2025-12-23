@@ -173,9 +173,8 @@ String TPackageCompiler::BuildCommandLine(const TIDEInfoPtr& ide,
             cmd = cmd + L" " + CompilerOptions::OBJ_OUTPUT_DIR + L"\"" + options.DCPOutputDir + L"\"";
         }
         
-        // HPP output directory - typically public folder (C:\Users\Public\...\hpp\*)
-        if (!options.HppOutputDir.IsEmpty())
-            cmd = cmd + L" " + CompilerOptions::HPP_OUTPUT_DIR + L"\"" + options.HppOutputDir + L"\"";
+        if (!options.UnitOutputDir.IsEmpty())
+            cmd = cmd + L" " + CompilerOptions::HPP_OUTPUT_DIR + L"\"" + options.UnitOutputDir + L"\"";
     }
     
     return cmd;

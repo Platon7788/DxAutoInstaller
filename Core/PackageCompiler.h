@@ -34,7 +34,6 @@ struct TCompileOptions
     String BPLOutputDir;          // BPL output directory
     String DCPOutputDir;          // DCP output directory
     String UnitOutputDir;         // DCU output directory
-    String HppOutputDir;          // HPP output directory (for C++Builder)
     TStringList* SearchPaths;     // Unit search paths
     TStringList* Defines;         // Conditional defines
     bool GenerateCppFiles;        // -JL for C++Builder

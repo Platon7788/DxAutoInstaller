@@ -546,9 +546,9 @@ void TInstaller::CleanupLibraryDir(const TIDEInfoPtr& ide, TIDEPlatform platform
     UpdateProgressState(L"Cleaning: " + libDir);
     
     // Extensions to delete from library directories
-    // Note: .hpp files are NOT in library dir - they go to public hpp folder
     std::set<String> compiledExtensions;
     compiledExtensions.insert(L".dcu");   // Delphi compiled units
+    compiledExtensions.insert(L".hpp");   // C++ headers
     compiledExtensions.insert(L".obj");   // Object files
     compiledExtensions.insert(L".o");     // Object files (Clang)
     compiledExtensions.insert(L".a");     // Import libraries (Win64x)
@@ -569,7 +569,7 @@ void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
         CleanupLibraryDir(ide, TIDEPlatform::Win64);
     CleanupLibraryDir(ide, TIDEPlatform::Win64Modern);
     
-    // Cleanup BPL directories
+    // Cleanup BPL directories (including Win64x)
     std::set<String> bplExtensions;
     bplExtensions.insert(L".bpl");
     bplExtensions.insert(L".lib");
@@ -585,8 +585,7 @@ void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
     DeleteDevExpressFilesFromDir(bplDir64, bplExtensions);
     DeleteDevExpressFilesFromDir(bplDir64x, bplExtensions);
     
-    // Cleanup DCP directories
-    // We create: .dcp (via -LN), .bpi (via -NB), .obj (via -NO)
+    // Cleanup DCP directories (including .obj files)
     std::set<String> dcpExtensions;
     dcpExtensions.insert(L".dcp");
     dcpExtensions.insert(L".bpi");
@@ -600,8 +599,7 @@ void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
     DeleteDevExpressFilesFromDir(dcpDir64, dcpExtensions);
     DeleteDevExpressFilesFromDir(dcpDir64x, dcpExtensions);
     
-    // Cleanup HPP directories (compiler writes .hpp here by default)
-    // Path: C:\Users\Public\Documents\Embarcadero\Studio\{ver}\hpp\{platform}
+    // Cleanup HPP directories (compiler writes .hpp here)
     std::set<String> hppExtensions;
     hppExtensions.insert(L".hpp");
     
@@ -1027,18 +1025,15 @@ void TInstaller::InstallPackage(const TIDEInfoPtr& ide,
     options.BPLOutputDir = ide->GetBPLOutputPath(platform);
     options.DCPOutputDir = ide->GetDCPOutputPath(platform);
     options.UnitOutputDir = GetInstallLibraryDir(FInstallFileDir, ide, platform);
-    options.HppOutputDir = ide->GetHPPOutputPath(platform);  // Public hpp folder
     
     LogToFile(L"  BPLOutputDir: [" + options.BPLOutputDir + L"]");
     LogToFile(L"  DCPOutputDir: [" + options.DCPOutputDir + L"]");
     LogToFile(L"  UnitOutputDir: [" + options.UnitOutputDir + L"]");
-    LogToFile(L"  HppOutputDir: [" + options.HppOutputDir + L"]");
     
     // Debug output - show paths
     UpdateProgressState(L"BPL Output: " + options.BPLOutputDir);
     UpdateProgressState(L"DCP Output: " + options.DCPOutputDir);
     UpdateProgressState(L"Unit Output: " + options.UnitOutputDir);
-    UpdateProgressState(L"HPP Output: " + options.HppOutputDir);
     
     // Safety check - all paths must be valid
     if (options.BPLOutputDir.IsEmpty() || options.DCPOutputDir.IsEmpty() || options.UnitOutputDir.IsEmpty())
@@ -1068,8 +1063,6 @@ void TInstaller::InstallPackage(const TIDEInfoPtr& ide,
         ForceDirectories(options.DCPOutputDir);
     if (!options.UnitOutputDir.IsEmpty())
         ForceDirectories(options.UnitOutputDir);
-    if (!options.HppOutputDir.IsEmpty() && options.GenerateCppFiles)
-        ForceDirectories(options.HppOutputDir);
     
     // Compile
     TCompileResult result = FCompiler->Compile(ide, platform, options);
@@ -1089,18 +1082,28 @@ void TInstaller::InstallPackage(const TIDEInfoPtr& ide,
             }
         }
         
-        // Win64x (Modern C++) support for C++Builder
-        // When compiling Win64 with -JL, generate support files for Win64x:
-        // - .bpi files are copied from Win64 DCP dir to Win64x DCP dir
-        // - .a import libraries are generated using mkexp.exe from .bpl
-        // Note: .hpp files are NOT copied - compiler writes them to public directory
-        //       (C:\Users\Public\...\hpp\Win64x) which is shared for all platforms
+        // Copy .hpp files to Win64x folder for C++Builder Modern support
+        // When compiling Win64 with -JL, also copy hpp to Win64x folder
+        // and generate .a import libraries for Modern C++ using mkexp
         if (platform == TIDEPlatform::Win64 && options.GenerateCppFiles)
         {
             String win64xLibDir = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64Modern);
             if (!win64xLibDir.IsEmpty())
             {
                 ForceDirectories(win64xLibDir);
+                
+                // Copy all .hpp files from Win64 to Win64x (headers are identical)
+                TSearchRec sr;
+                if (FindFirst(options.UnitOutputDir + L"\\*.hpp", faAnyFile, sr) == 0)
+                {
+                    do
+                    {
+                        String srcHpp = options.UnitOutputDir + L"\\" + sr.Name;
+                        String dstHpp = win64xLibDir + L"\\" + sr.Name;
+                        CopyFile(srcHpp.c_str(), dstHpp.c_str(), FALSE);
+                    } while (FindNext(sr) == 0);
+                    FindClose(sr);
+                }
                 
                 // Copy .bpi files from Win64 DCP dir to Win64x DCP dir
                 // BPI files are needed for C++Builder linking
@@ -1212,23 +1215,12 @@ void TInstaller::UninstallIDE(const TIDEInfoPtr& ide)
     bool useBothIDE = opts.count(TInstallOption::UseBothIDE) > 0;
     bool use64BitIDE = opts.count(TInstallOption::Use64BitIDE) > 0;
     
-    LogToFile(L"  useBothIDE: " + String(useBothIDE ? L"true" : L"false"));
-    LogToFile(L"  use64BitIDE: " + String(use64BitIDE ? L"true" : L"false"));
-    
     // Remove DevExpress packages from the appropriate Known Packages registry
     // For "Both IDE" mode: clean both registry keys
-    // For 32-bit only: clean Known Packages
-    // For 64-bit only: clean Known Packages x64
     if (useBothIDE || !use64BitIDE)
-    {
-        LogToFile(L"  Cleaning 32-bit IDE registry (Known Packages)");
         UnregisterAllDevExpressPackages(ide, false);  // 32-bit IDE
-    }
     if (useBothIDE || use64BitIDE)
-    {
-        LogToFile(L"  Cleaning 64-bit IDE registry (Known Packages x64)");
         UnregisterAllDevExpressPackages(ide, true);   // 64-bit IDE
-    }
     
     // Get previous install directory before clearing it
     String prevInstallDir = GetEnvironmentVariable(ide, DX_ENV_VARIABLE);
@@ -1592,8 +1584,6 @@ void TInstaller::UnregisterAllDevExpressPackages(const TIDEInfoPtr& ide, bool is
         std::unique_ptr<TStringList> values(new TStringList());
         reg->GetValueNames(values.get());
         
-        LogToFile(L"  Found " + String(values->Count) + L" total entries in registry key");
-        
         // Collect DevExpress packages to remove
         std::unique_ptr<TStringList> toRemove(new TStringList());
         
@@ -1612,8 +1602,6 @@ void TInstaller::UnregisterAllDevExpressPackages(const TIDEInfoPtr& ide, bool is
                 fileName.Pos(L"dcldx") == 1 ||    // design-time dx packages
                 fileName.Pos(L"dclcx") == 1;      // design-time cx packages
             
-            LogToFile(L"  Checking: " + fileName + L" -> " + String(isDevExpress ? L"DevExpress" : L"skip"));
-            
             if (isDevExpress)
             {
                 toRemove->Add(valueName);
@@ -1630,10 +1618,6 @@ void TInstaller::UnregisterAllDevExpressPackages(const TIDEInfoPtr& ide, bool is
         LogToFile(L"  Removed " + String(toRemove->Count) + L" DevExpress package registrations");
         
         reg->CloseKey();
-    }
-    else
-    {
-        LogToFile(L"  ERROR: Failed to open registry key: " + keyPath);
     }
 }
 

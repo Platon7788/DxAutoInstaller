@@ -220,10 +220,8 @@ String TIDEInfo::GetHPPOutputPath(TIDEPlatform platform) const
     String bdsVer = BDSVersion.IsEmpty() ? L"23.0" : BDSVersion;
     String result = publicDocs + L"\\" + bdsVer + L"\\hpp";
     
-    // Add platform subfolder
-    if (platform == TIDEPlatform::Win32)
-        result = result + L"\\Win32";
-    else if (platform == TIDEPlatform::Win64)
+    // For Win64, add subfolder
+    if (platform == TIDEPlatform::Win64)
         result = result + L"\\Win64";
     else if (platform == TIDEPlatform::Win64Modern)
         result = result + L"\\Win64x";
