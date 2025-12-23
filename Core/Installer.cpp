@@ -1197,11 +1197,28 @@ void TInstaller::UninstallIDE(const TIDEInfoPtr& ide)
     LogToFile(L"=== UninstallIDE: " + ide->Name + L" ===");
     UpdateProgressState(L"Uninstalling from " + ide->Name);
     
-    // ALWAYS clean BOTH registry keys during uninstall
-    // We don't know which IDE bitness was used during previous installation
-    // So we must clean both "Known Packages" (32-bit) and "Known Packages x64" (64-bit)
-    UnregisterAllDevExpressPackages(ide, false);  // 32-bit IDE (Known Packages)
-    UnregisterAllDevExpressPackages(ide, true);   // 64-bit IDE (Known Packages x64)
+    // Get the IDE bitness option to know which registry key to clean
+    TInstallOptionSet opts = GetOptions(ide);
+    bool useBothIDE = opts.count(TInstallOption::UseBothIDE) > 0;
+    bool use64BitIDE = opts.count(TInstallOption::Use64BitIDE) > 0;
+    
+    LogToFile(L"  useBothIDE: " + String(useBothIDE ? L"true" : L"false"));
+    LogToFile(L"  use64BitIDE: " + String(use64BitIDE ? L"true" : L"false"));
+    
+    // Remove DevExpress packages from the appropriate Known Packages registry
+    // For "Both IDE" mode: clean both registry keys
+    // For 32-bit only: clean Known Packages
+    // For 64-bit only: clean Known Packages x64
+    if (useBothIDE || !use64BitIDE)
+    {
+        LogToFile(L"  Cleaning 32-bit IDE registry (Known Packages)");
+        UnregisterAllDevExpressPackages(ide, false);  // 32-bit IDE
+    }
+    if (useBothIDE || use64BitIDE)
+    {
+        LogToFile(L"  Cleaning 64-bit IDE registry (Known Packages x64)");
+        UnregisterAllDevExpressPackages(ide, true);   // 64-bit IDE
+    }
     
     // Get previous install directory before clearing it
     String prevInstallDir = GetEnvironmentVariable(ide, DX_ENV_VARIABLE);
@@ -1565,13 +1582,14 @@ void TInstaller::UnregisterAllDevExpressPackages(const TIDEInfoPtr& ide, bool is
         std::unique_ptr<TStringList> values(new TStringList());
         reg->GetValueNames(values.get());
         
+        LogToFile(L"  Found " + String(values->Count) + L" total entries in registry key");
+        
         // Collect DevExpress packages to remove
         std::unique_ptr<TStringList> toRemove(new TStringList());
         
         for (int i = 0; i < values->Count; i++)
         {
             String valueName = values->Strings[i];
-            String lowerName = valueName.LowerCase();
             
             // Check if this is a DevExpress package
             // DevExpress packages start with: dx, cx, dcldx, dclcx
@@ -1583,6 +1601,8 @@ void TInstaller::UnregisterAllDevExpressPackages(const TIDEInfoPtr& ide, bool is
                 fileName.Pos(L"cx") == 1 ||       // cxGrid, cxEdit, etc.
                 fileName.Pos(L"dcldx") == 1 ||    // design-time dx packages
                 fileName.Pos(L"dclcx") == 1;      // design-time cx packages
+            
+            LogToFile(L"  Checking: " + fileName + L" -> " + String(isDevExpress ? L"DevExpress" : L"skip"));
             
             if (isDevExpress)
             {
@@ -1600,6 +1620,10 @@ void TInstaller::UnregisterAllDevExpressPackages(const TIDEInfoPtr& ide, bool is
         LogToFile(L"  Removed " + String(toRemove->Count) + L" DevExpress package registrations");
         
         reg->CloseKey();
+    }
+    else
+    {
+        LogToFile(L"  ERROR: Failed to open registry key: " + keyPath);
     }
 }
 
