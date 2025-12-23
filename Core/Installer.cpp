@@ -584,9 +584,11 @@ void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
     DeleteDevExpressFilesFromDir(bplDir64, bplExtensions);
     
     // Cleanup DCP directories
+    // We create: .dcp (via -LN), .bpi (via -NB), .obj (via -NO)
     std::set<String> dcpExtensions;
     dcpExtensions.insert(L".dcp");
     dcpExtensions.insert(L".bpi");
+    dcpExtensions.insert(L".obj");  // Object files created with -NO flag
     
     String dcpDir32 = ide->GetDCPOutputPath(TIDEPlatform::Win32);
     String dcpDir64 = ide->GetDCPOutputPath(TIDEPlatform::Win64);
@@ -1308,8 +1310,10 @@ void TInstaller::UninstallPackage(const TIDEInfoPtr& ide,
     // Delete DCP and BPI from DCP directory
     String dcpPath = TPath::Combine(dcpDir, packageName + L".dcp");
     String bpiPath = TPath::Combine(dcpDir, packageName + L".bpi");
+    String objPath = TPath::Combine(dcpDir, packageName + L".obj");
     DeleteFile(dcpPath.c_str());
     DeleteFile(bpiPath.c_str());
+    DeleteFile(objPath.c_str());
     
     // Delete compiled files from Library directory (.dcu, .hpp, .a, .obj)
     // Note: We can't easily know which .dcu files belong to which package,
