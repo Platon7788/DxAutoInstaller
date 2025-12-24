@@ -8,6 +8,7 @@
 #include <Vcl.Forms.hpp>
 #include <DateUtils.hpp>
 #include <fstream>
+#include <vector>
 
 namespace DxCore
 {
@@ -69,7 +70,7 @@ TInstaller::TInstaller()
     FProfile = std::make_unique<TProfileManager>();
     FCompiler = std::make_unique<TPackageCompiler>();
     
-    LogToFile(L"=== DxAutoInstaller Started ===");
+    LogToFile(L"=== DxAutoInstaller Started (BUILD: 2025-12-24 v11) ===");
 }
 
 TInstaller::~TInstaller()
@@ -159,11 +160,16 @@ void TInstaller::DoSetInstallFileDir(const String& value)
         opts.insert(TInstallOption::CompileWin32Runtime);
         if (ide->SupportsWin64)
             opts.insert(TInstallOption::CompileWin64Runtime);
+        if (ide->SupportsWin64Modern)
+            opts.insert(TInstallOption::CompileWin64xRuntime);
         
         // Other options
         opts.insert(TInstallOption::AddBrowsingPath);
         opts.insert(TInstallOption::NativeLookAndFeel);
-        // GenerateCppFiles is NOT set by default
+        
+        // Generate C++ files by default for RAD Studio and C++Builder
+        if (ide->Personality != TIDEPersonality::Delphi)
+            opts.insert(TInstallOption::GenerateCppFiles);
             
         FOptions[ide->BDSVersion] = opts;
     }
@@ -414,10 +420,19 @@ String TInstaller::GetInstallLibraryDir(const String& installFileDir,
         if (!ideSuffix.IsEmpty())
             result = result + L"\\" + ideSuffix;
         
-        if (platform == TIDEPlatform::Win64)
-            result = result + L"\\" + PlatformNames::Win64;
-        else if (platform == TIDEPlatform::Win64Modern)
-            result = result + L"\\" + PlatformNames::Win64Modern;
+        // All platforms now have their own subfolder
+        switch (platform)
+        {
+            case TIDEPlatform::Win32:
+                result = result + L"\\" + PlatformNames::Win32;
+                break;
+            case TIDEPlatform::Win64:
+                result = result + L"\\" + PlatformNames::Win64;
+                break;
+            case TIDEPlatform::Win64Modern:
+                result = result + L"\\" + PlatformNames::Win64Modern;
+                break;
+        }
     }
     
     return result;
@@ -566,45 +581,83 @@ void TInstaller::CleanupLibraryDir(const TIDEInfoPtr& ide, TIDEPlatform platform
 
 void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
 {
-    LogToFile(L"CleanupAllCompiledFiles for IDE: " + ide->Name);
+    LogToFile(L"=== CleanupAllCompiledFiles for IDE: " + ide->Name + L" ===");
+    LogToFile(L"  IDE BDSVersion: " + ide->BDSVersion);
+    LogToFile(L"  InstallFileDir: " + FInstallFileDir);
     
-    // Cleanup library directories
-    CleanupLibraryDir(ide, TIDEPlatform::Win32);
-    if (ide->SupportsWin64)
-        CleanupLibraryDir(ide, TIDEPlatform::Win64);
-    CleanupLibraryDir(ide, TIDEPlatform::Win64Modern);
+    // Delete entire Library\{ver} directory (contains Win32, Win64, Win64x subfolders)
+    // This is simpler and cleaner than deleting files individually
+    String ideSuffix = TProfileManager::GetIDEVersionNumberStr(ide);
+    if (!ideSuffix.IsEmpty() && !FInstallFileDir.IsEmpty())
+    {
+        String libVerDir = FInstallFileDir + L"\\Library\\" + ideSuffix;
+        if (DirectoryExists(libVerDir))
+        {
+            LogToFile(L"Deleting entire library directory: " + libVerDir);
+            UpdateProgressState(L"Deleting: " + libVerDir);
+            
+            // Use TDirectory::Delete with recursive flag
+            try
+            {
+                TDirectory::Delete(libVerDir, true);
+                LogToFile(L"  Successfully deleted: " + libVerDir);
+            }
+            catch (Exception& e)
+            {
+                LogToFile(L"  Failed to delete: " + e.Message);
+            }
+        }
+        else
+        {
+            LogToFile(L"  Library directory does not exist: " + libVerDir);
+        }
+    }
     
-    // Cleanup BPL directories (including Win64x)
+    // Cleanup BPL directories - only delete DevExpress files (shared with other packages)
+    LogToFile(L"=== Cleaning BPL directories ===");
     std::set<String> bplExtensions;
     bplExtensions.insert(L".bpl");
     bplExtensions.insert(L".lib");
     bplExtensions.insert(L".bpi");
     bplExtensions.insert(L".map");
+    bplExtensions.insert(L".a");
     
     String bplDir32 = ide->GetBPLOutputPath(TIDEPlatform::Win32);
     String bplDir64 = ide->GetBPLOutputPath(TIDEPlatform::Win64);
     String bplDir64x = ide->GetBPLOutputPath(TIDEPlatform::Win64Modern);
     
-    // Only delete DevExpress files from BPL dirs
+    LogToFile(L"  BPL Win32 path: " + bplDir32);
+    LogToFile(L"  BPL Win64 path: " + bplDir64);
+    LogToFile(L"  BPL Win64x path: " + bplDir64x);
+    
     DeleteDevExpressFilesFromDir(bplDir32, bplExtensions);
     DeleteDevExpressFilesFromDir(bplDir64, bplExtensions);
     DeleteDevExpressFilesFromDir(bplDir64x, bplExtensions);
     
-    // Cleanup DCP directories (including .obj files)
+    // Cleanup DCP directories - only delete DevExpress files
+    LogToFile(L"=== Cleaning DCP directories ===");
     std::set<String> dcpExtensions;
     dcpExtensions.insert(L".dcp");
     dcpExtensions.insert(L".bpi");
-    dcpExtensions.insert(L".obj");  // Object files created with -NO flag
+    dcpExtensions.insert(L".lib");
+    dcpExtensions.insert(L".a");
+    dcpExtensions.insert(L".obj");
+    dcpExtensions.insert(L".o");
     
     String dcpDir32 = ide->GetDCPOutputPath(TIDEPlatform::Win32);
     String dcpDir64 = ide->GetDCPOutputPath(TIDEPlatform::Win64);
     String dcpDir64x = ide->GetDCPOutputPath(TIDEPlatform::Win64Modern);
     
+    LogToFile(L"  DCP Win32 path: " + dcpDir32);
+    LogToFile(L"  DCP Win64 path: " + dcpDir64);
+    LogToFile(L"  DCP Win64x path: " + dcpDir64x);
+    
     DeleteDevExpressFilesFromDir(dcpDir32, dcpExtensions);
     DeleteDevExpressFilesFromDir(dcpDir64, dcpExtensions);
     DeleteDevExpressFilesFromDir(dcpDir64x, dcpExtensions);
     
-    // Cleanup HPP directories (compiler writes .hpp here)
+    // Cleanup HPP directories - only delete DevExpress files
+    LogToFile(L"=== Cleaning HPP directories ===");
     std::set<String> hppExtensions;
     hppExtensions.insert(L".hpp");
     
@@ -612,17 +665,41 @@ void TInstaller::CleanupAllCompiledFiles(const TIDEInfoPtr& ide)
     String hppDir64 = ide->GetHPPOutputPath(TIDEPlatform::Win64);
     String hppDir64x = ide->GetHPPOutputPath(TIDEPlatform::Win64Modern);
     
+    LogToFile(L"  HPP Win32 path: " + hppDir32);
+    LogToFile(L"  HPP Win64 path: " + hppDir64);
+    LogToFile(L"  HPP Win64x path: " + hppDir64x);
+    
     DeleteDevExpressFilesFromDir(hppDir32, hppExtensions);
     DeleteDevExpressFilesFromDir(hppDir64, hppExtensions);
     DeleteDevExpressFilesFromDir(hppDir64x, hppExtensions);
+    
+    LogToFile(L"=== CleanupAllCompiledFiles completed ===");
 }
 
 void TInstaller::DeleteDevExpressFilesFromDir(const String& dir, const std::set<String>& extensions)
 {
     LogToFile(L"DeleteDevExpressFilesFromDir: [" + dir + L"]");
     
-    if (!DirectoryExists(dir))
+    if (dir.IsEmpty())
+    {
+        LogToFile(L"  ERROR: Empty directory path!");
         return;
+    }
+    
+    if (!DirectoryExists(dir))
+    {
+        LogToFile(L"  Directory does not exist, skipping");
+        return;
+    }
+    
+    LogToFile(L"  Extensions to delete: ");
+    for (const auto& ext : extensions)
+    {
+        LogToFile(L"    " + ext);
+    }
+    
+    int deletedCount = 0;
+    int skippedCount = 0;
     
     TSearchRec sr;
     if (FindFirst(dir + L"\\*.*", faAnyFile, sr) == 0)
@@ -638,23 +715,45 @@ void TInstaller::DeleteDevExpressFilesFromDir(const String& dir, const std::set<
             String lowerName = sr.Name.LowerCase();
             String ext = ExtractFileExt(sr.Name).LowerCase();
             
-            // Check if this is a DevExpress file
+            // Check if this is a DevExpress file by prefix
+            // DevExpress packages start with: dx, cx, dcldx, dclcx
             bool isDevExpress = 
                 lowerName.Pos(L"dx") == 1 ||      // dxCore, dxBar, etc.
                 lowerName.Pos(L"cx") == 1 ||      // cxGrid, cxEdit, etc.
-                lowerName.Pos(L"dcldx") == 1 ||   // design-time packages
-                lowerName.Pos(L"dclcx") == 1;
+                lowerName.Pos(L"dcldx") == 1 ||   // design-time packages (dcldxCore)
+                lowerName.Pos(L"dclcx") == 1;     // design-time packages (dclcxGrid)
             
-            if (isDevExpress && extensions.count(ext) > 0)
+            if (isDevExpress)
             {
-                String fullPath = dir + L"\\" + sr.Name;
-                LogToFile(L"  Deleting DevExpress file: " + fullPath);
-                DeleteFile(fullPath.c_str());
+                if (extensions.count(ext) > 0)
+                {
+                    String fullPath = dir + L"\\" + sr.Name;
+                    LogToFile(L"  Deleting: " + fullPath);
+                    if (DeleteFile(fullPath.c_str()))
+                    {
+                        deletedCount++;
+                    }
+                    else
+                    {
+                        LogToFile(L"    FAILED to delete: " + fullPath);
+                    }
+                }
+                else
+                {
+                    LogToFile(L"  Skipping (wrong ext): " + sr.Name + L" [ext=" + ext + L"]");
+                    skippedCount++;
+                }
             }
         } while (FindNext(sr) == 0);
         
         FindClose(sr);
     }
+    else
+    {
+        LogToFile(L"  FindFirst failed or directory is empty");
+    }
+    
+    LogToFile(L"  Deleted: " + String(deletedCount) + L" files, Skipped: " + String(skippedCount) + L" files");
 }
 
 void TInstaller::Install(const std::vector<TIDEInfoPtr>& ides)
@@ -749,11 +848,12 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
     
     const TComponentList& components = GetComponents(ide);
     
-    // Get options - simplified logic
-    bool registerFor32BitIDE = opts.count(TInstallOption::RegisterFor32BitIDE) > 0;  // Always true
+    // Get options from UI checkboxes
+    bool registerFor32BitIDE = opts.count(TInstallOption::RegisterFor32BitIDE) > 0;
     bool registerFor64BitIDE = opts.count(TInstallOption::RegisterFor64BitIDE) > 0;
     bool compileWin32 = opts.count(TInstallOption::CompileWin32Runtime) > 0;
     bool compileWin64 = opts.count(TInstallOption::CompileWin64Runtime) > 0 && ide->SupportsWin64;
+    bool compileWin64x = opts.count(TInstallOption::CompileWin64xRuntime) > 0 && ide->SupportsWin64Modern;
     bool generateCppFiles = opts.count(TInstallOption::GenerateCppFiles) > 0 && 
                             ide->Personality != TIDEPersonality::Delphi;
     
@@ -765,18 +865,16 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
     if (registerFor64BitIDE && !compileWin64 && ide->SupportsWin64)
         compileWin64 = true;
     
-    // Win64x (Modern C++) support - generate from Win64 when C++ files enabled
-    bool generateWin64xLibs = generateCppFiles && compileWin64;
-    
     // Log compilation options
     LogToFile(L"=== Compilation Options ===");
     LogToFile(L"registerFor32BitIDE: " + String(registerFor32BitIDE ? L"true" : L"false"));
     LogToFile(L"registerFor64BitIDE: " + String(registerFor64BitIDE ? L"true" : L"false"));
     LogToFile(L"compileWin32: " + String(compileWin32 ? L"true" : L"false"));
     LogToFile(L"compileWin64: " + String(compileWin64 ? L"true" : L"false"));
+    LogToFile(L"compileWin64x: " + String(compileWin64x ? L"true" : L"false"));
     LogToFile(L"generateCppFiles: " + String(generateCppFiles ? L"true" : L"false"));
-    LogToFile(L"generateWin64xLibs: " + String(generateWin64xLibs ? L"true" : L"false"));
     LogToFile(L"IDE SupportsWin64: " + String(ide->SupportsWin64 ? L"true" : L"false"));
+    LogToFile(L"IDE SupportsWin64Modern: " + String(ide->SupportsWin64Modern ? L"true" : L"false"));
     LogToFile(L"IDE Personality: " + String(ide->Personality == TIDEPersonality::Delphi ? L"Delphi" : 
                                             (ide->Personality == TIDEPersonality::CppBuilder ? L"CppBuilder" : L"RADStudio")));
     
@@ -794,10 +892,10 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
     sourceExtensions.insert(L".dcr");
     
     // Define extensions for resource files (needed in Library\{ver}\* for compiler)
+    // Note: .dfm files are NOT needed here - compiler finds them via Search Path in Library\Sources
+    // Note: .dcr files are NOT needed here - they stay in Library\Sources
     std::set<String> resourceExtensions;
-    resourceExtensions.insert(L".dfm");
     resourceExtensions.insert(L".res");
-    resourceExtensions.insert(L".dcr");
     
     for (const auto& comp : components)
     {
@@ -826,8 +924,8 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
             CopySourceFilesFiltered(sourcesDir, libDir64, resourceExtensions);
         }
         
-        // For Win64x - only create directory, .hpp and .a will be generated from Win64
-        if (generateWin64xLibs)
+        // For Win64x - create directory for compiled files
+        if (compileWin64x)
         {
             String libDir64x = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64Modern);
             ForceDirectories(libDir64x);
@@ -885,6 +983,10 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
             
             if (compileWin64)
                 CompilePackage(ide, TIDEPlatform::Win64, comp, pkg);
+            
+            // Win64x (Modern) - compile separately with -jf:coffi flag
+            if (compileWin64x)
+                CompilePackage(ide, TIDEPlatform::Win64Modern, comp, pkg);
         }
     }
     
@@ -906,26 +1008,22 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
             
             if (compileWin64)
                 CompilePackage(ide, TIDEPlatform::Win64, comp, pkg);
+            
+            // Win64x (Modern) - compile separately with -jf:coffi flag
+            if (compileWin64x)
+                CompilePackage(ide, TIDEPlatform::Win64Modern, comp, pkg);
         }
     }
     
     // ========================================
-    // Phase 4: Generate Win64x artifacts (if C++ enabled)
-    // ========================================
-    if (generateWin64xLibs)
-    {
-        GenerateWin64xArtifacts(ide);
-    }
-    
-    // ========================================
-    // Phase 5: Register design-time packages
+    // Phase 4: Register design-time packages
     // ========================================
     RegisterDesignTimePackages(ide, TIDEPlatform::Win32, registerFor32BitIDE, false);
     if (registerFor64BitIDE && compileWin64)
         RegisterDesignTimePackages(ide, TIDEPlatform::Win64, false, registerFor64BitIDE);
     
     // ========================================
-    // Phase 6: Add library paths
+    // Phase 5: Add library paths
     // ========================================
     String iconLibraryDir = FInstallFileDir + L"\\ExpressLibrary\\Sources\\Icon Library";
     bool hasIconLibrary = DirectoryExists(iconLibraryDir);
@@ -936,7 +1034,7 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
     if (compileWin64)
         AddLibraryPaths(ide, TIDEPlatform::Win64);
     
-    if (generateWin64xLibs)
+    if (compileWin64x)
         AddLibraryPaths(ide, TIDEPlatform::Win64Modern);
     
     // Set environment variable
@@ -988,9 +1086,10 @@ void TInstaller::CompilePackage(const TIDEInfoPtr& ide,
     String platformName;
     switch (platform)
     {
+        case TIDEPlatform::Win32: platformName = L"Win32"; break;
         case TIDEPlatform::Win64: platformName = L"Win64"; break;
         case TIDEPlatform::Win64Modern: platformName = L"Win64x"; break;
-        default: platformName = L"Win32"; break;
+        default: platformName = L"Unknown"; break;
     }
     
     LogToFile(L"InstallPackage: " + platformName + L" > " + package->Name);
@@ -1043,7 +1142,7 @@ void TInstaller::CompilePackage(const TIDEInfoPtr& ide,
     if (!options.UnitOutputDir.IsEmpty())
         ForceDirectories(options.UnitOutputDir);
     
-    // Compile
+    // Compile - use actual platform (dcc64x for Win64Modern)
     TCompileResult result = FCompiler->Compile(ide, platform, options);
     
     if (result.Success)
@@ -1061,6 +1160,12 @@ void TInstaller::CompilePackage(const TIDEInfoPtr& ide,
             }
         }
         
+        // Log what was generated
+        String libPath = TPath::Combine(options.DCPOutputDir, package->Name + L".lib");
+        String aPath = TPath::Combine(options.DCPOutputDir, package->Name + L".a");
+        LogToFile(L"  .lib exists: " + String(FileExists(libPath) ? L"yes" : L"no"));
+        LogToFile(L"  .a exists: " + String(FileExists(aPath) ? L"yes" : L"no"));
+        
         LogToFile(L"  Compilation successful");
     }
     else
@@ -1070,96 +1175,6 @@ void TInstaller::CompilePackage(const TIDEInfoPtr& ide,
             UpdateProgressState(result.ErrorMessage);
         SetState(TInstallerState::Error);
     }
-}
-
-//---------------------------------------------------------------------------
-// Generate Win64x artifacts from Win64 compilation
-//---------------------------------------------------------------------------
-void TInstaller::GenerateWin64xArtifacts(const TIDEInfoPtr& ide)
-{
-    LogToFile(L"=== Generating Win64x artifacts ===");
-    UpdateProgressState(L"Generating Win64x artifacts...");
-    
-    String win64LibDir = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64);
-    String win64xLibDir = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64Modern);
-    String win64DcpDir = ide->GetDCPOutputPath(TIDEPlatform::Win64);
-    String win64xDcpDir = ide->GetDCPOutputPath(TIDEPlatform::Win64Modern);
-    String win64BplDir = ide->GetBPLOutputPath(TIDEPlatform::Win64);
-    
-    ForceDirectories(win64xLibDir);
-    ForceDirectories(win64xDcpDir);
-    
-    // Copy all .hpp files from Win64 to Win64x
-    TSearchRec sr;
-    if (FindFirst(win64LibDir + L"\\*.hpp", faAnyFile, sr) == 0)
-    {
-        do
-        {
-            String srcHpp = win64LibDir + L"\\" + sr.Name;
-            String dstHpp = win64xLibDir + L"\\" + sr.Name;
-            CopyFile(srcHpp.c_str(), dstHpp.c_str(), FALSE);
-        } while (FindNext(sr) == 0);
-        FindClose(sr);
-    }
-    
-    // Copy all .bpi files from Win64 DCP to Win64x DCP
-    if (FindFirst(win64DcpDir + L"\\*.bpi", faAnyFile, sr) == 0)
-    {
-        do
-        {
-            String srcBpi = win64DcpDir + L"\\" + sr.Name;
-            String dstBpi = win64xDcpDir + L"\\" + sr.Name;
-            CopyFile(srcBpi.c_str(), dstBpi.c_str(), FALSE);
-        } while (FindNext(sr) == 0);
-        FindClose(sr);
-    }
-    
-    // Generate .a import libraries using mkexp
-    String mkexpPath = ide->RootDir + L"\\bin64\\mkexp.exe";
-    if (!FileExists(mkexpPath))
-    {
-        LogToFile(L"  mkexp.exe not found, skipping .a generation");
-        return;
-    }
-    
-    if (FindFirst(win64BplDir + L"\\*.bpl", faAnyFile, sr) == 0)
-    {
-        do
-        {
-            String bplName = sr.Name;
-            String baseName = ChangeFileExt(bplName, L"");
-            
-            // Only process DevExpress packages
-            String lowerName = baseName.LowerCase();
-            if (lowerName.Pos(L"dx") != 1 && lowerName.Pos(L"cx") != 1)
-                continue;
-            
-            String bplPath = win64BplDir + L"\\" + bplName;
-            String libPath = win64xLibDir + L"\\" + baseName + L".a";
-            
-            String cmdLine = L"\"" + mkexpPath + L"\" \"" + libPath + L"\" \"" + bplPath + L"\"";
-            
-            STARTUPINFOW si = {0};
-            si.cb = sizeof(si);
-            si.dwFlags = STARTF_USESHOWWINDOW;
-            si.wShowWindow = SW_HIDE;
-            
-            PROCESS_INFORMATION pi = {0};
-            std::vector<wchar_t> cmdBuffer(cmdLine.Length() + 1);
-            wcscpy(cmdBuffer.data(), cmdLine.c_str());
-            
-            if (CreateProcessW(nullptr, cmdBuffer.data(), nullptr, nullptr, FALSE,
-                               CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
-            {
-                WaitForSingleObject(pi.hProcess, 30000);
-                CloseHandle(pi.hProcess);
-                CloseHandle(pi.hThread);
-            }
-        } while (FindNext(sr) == 0);
-        FindClose(sr);
-    }
-    
-    LogToFile(L"=== Win64x artifacts generation completed ===");
 }
 
 //---------------------------------------------------------------------------
@@ -1220,9 +1235,25 @@ void TInstaller::AddLibraryPaths(const TIDEInfoPtr& ide, TIDEPlatform platform)
     String libDir = GetInstallLibraryDir(FInstallFileDir, ide, platform);
     String iconLibraryDir = FInstallFileDir + L"\\ExpressLibrary\\Sources\\Icon Library";
     bool hasIconLibrary = DirectoryExists(iconLibraryDir);
+    bool generateCppFiles = opts.count(TInstallOption::GenerateCppFiles) > 0 && 
+                            ide->Personality != TIDEPersonality::Delphi;
     
-    // Add library search path
+    LogToFile(L"AddLibraryPaths for platform: " + String(
+        platform == TIDEPlatform::Win32 ? L"Win32" : 
+        platform == TIDEPlatform::Win64 ? L"Win64" : L"Win64x"));
+    LogToFile(L"  libDir: " + libDir);
+    LogToFile(L"  installSourcesDir: " + installSourcesDir);
+    LogToFile(L"  generateCppFiles: " + String(generateCppFiles ? L"true" : L"false"));
+    
+    // Add library search path (for .dcu files)
     AddToLibraryPath(ide, platform, libDir, false);
+    
+    // For Win64x, also add DCP path where .lib/.a files are located
+    if (platform == TIDEPlatform::Win64Modern)
+    {
+        String dcpDir = ide->GetDCPOutputPath(platform);
+        AddToLibraryPath(ide, platform, dcpDir, false);
+    }
     
     // Add browsing/search path for sources
     if (opts.count(TInstallOption::AddBrowsingPath) > 0)
@@ -1235,6 +1266,26 @@ void TInstaller::AddLibraryPaths(const TIDEInfoPtr& ide, TIDEPlatform platform)
     {
         AddToLibraryPath(ide, platform, installSourcesDir, false);
     }
+    
+    // Add C++ specific paths for RAD Studio and C++Builder
+    if (generateCppFiles)
+    {
+        // Add .hpp path to C++ System Include Path
+        // HPP files are in Library\{ver}\{platform} directory (same as .dcu)
+        AddToCppIncludePath(ide, platform, libDir);
+        
+        // Also add sources to C++ Include Path for inline implementations
+        AddToCppIncludePath(ide, platform, installSourcesDir);
+        
+        // Add DCP directory to C++ Library Path for .lib/.a files
+        String dcpDir = ide->GetDCPOutputPath(platform);
+        AddToCppPath(ide, platform, dcpDir, false);
+        
+        LogToFile(L"  Added C++ paths:");
+        LogToFile(L"    IncludePath: " + libDir);
+        LogToFile(L"    IncludePath: " + installSourcesDir);
+        LogToFile(L"    LibraryPath: " + dcpDir);
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -1246,14 +1297,47 @@ void TInstaller::RemoveLibraryPaths(const TIDEInfoPtr& ide, TIDEPlatform platfor
     if (prevInstallDir.IsEmpty())
         return;
     
+    LogToFile(L"RemoveLibraryPaths for platform: " + String(
+        platform == TIDEPlatform::Win32 ? L"Win32" : 
+        platform == TIDEPlatform::Win64 ? L"Win64" : L"Win64x"));
+    LogToFile(L"  prevInstallDir: " + prevInstallDir);
+    
     String sourcesDir = GetInstallSourcesDir(prevInstallDir);
     String libDir = GetInstallLibraryDir(prevInstallDir, ide, platform);
     String iconLibraryDir = prevInstallDir + L"\\ExpressLibrary\\Sources\\Icon Library";
     
+    // Remove Delphi library paths (always - for all IDE types)
     RemoveFromLibraryPath(ide, platform, libDir, false);
     RemoveFromLibraryPath(ide, platform, sourcesDir, false);
     RemoveFromLibraryPath(ide, platform, sourcesDir, true);
     RemoveFromLibraryPath(ide, platform, iconLibraryDir, true);
+    
+    // For Win64x, also remove DCP path from Delphi paths
+    if (platform == TIDEPlatform::Win64Modern)
+    {
+        String dcpDir = ide->GetDCPOutputPath(platform);
+        RemoveFromLibraryPath(ide, platform, dcpDir, false);
+    }
+    
+    // Remove C++ specific paths for RAD Studio and C++Builder
+    // Note: We try to remove even if GenerateCppFiles wasn't set, 
+    // because user might have changed settings between installs
+    if (ide->Personality != TIDEPersonality::Delphi)
+    {
+        // Remove from C++ Include Path
+        RemoveFromCppIncludePath(ide, platform, libDir);
+        RemoveFromCppIncludePath(ide, platform, sourcesDir);
+        
+        // Remove from C++ Library Path
+        String dcpDir = ide->GetDCPOutputPath(platform);
+        RemoveFromCppPath(ide, platform, dcpDir, false);
+        
+        LogToFile(L"  Removed C++ paths (RAD Studio/C++Builder)");
+    }
+    else
+    {
+        LogToFile(L"  Skipped C++ paths (Delphi only)");
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -1312,11 +1396,23 @@ void TInstaller::UninstallIDE(const TIDEInfoPtr& ide, const TUninstallOptions& u
 //---------------------------------------------------------------------------
 void TInstaller::DeletePackageFiles(const TIDEInfoPtr& ide, TIDEPlatform platform)
 {
+    LogToFile(L"DeletePackageFiles for platform: " + String(
+        platform == TIDEPlatform::Win32 ? L"Win32" : 
+        platform == TIDEPlatform::Win64 ? L"Win64" : L"Win64x"));
+    
     if (!TPackageCompiler::IsPlatformSupported(ide, platform) && platform != TIDEPlatform::Win64Modern)
+    {
+        LogToFile(L"  Platform not supported, skipping");
         return;
+    }
     
     String bplDir = ide->GetBPLOutputPath(platform);
     String dcpDir = ide->GetDCPOutputPath(platform);
+    
+    LogToFile(L"  BPL dir: " + bplDir);
+    LogToFile(L"  DCP dir: " + dcpDir);
+    
+    int deletedCount = 0;
     
     for (const auto& profile : FProfile->GetComponents())
     {
@@ -1335,20 +1431,24 @@ void TInstaller::DeletePackageFiles(const TIDEInfoPtr& ide, TIDEPlatform platfor
                 
                 // Delete from BPL directory
                 String bplPath = TPath::Combine(bplDir, packageName + L".bpl");
-                DeleteFile(bplPath.c_str());
-                DeleteFile(ChangeFileExt(bplPath, L".lib").c_str());
-                DeleteFile(ChangeFileExt(bplPath, L".bpi").c_str());
-                DeleteFile(ChangeFileExt(bplPath, L".map").c_str());
-                DeleteFile(ChangeFileExt(bplPath, L".a").c_str());  // Win64x
+                if (DeleteFile(bplPath.c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(bplPath, L".lib").c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(bplPath, L".bpi").c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(bplPath, L".map").c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(bplPath, L".a").c_str())) deletedCount++;
                 
                 // Delete from DCP directory
                 String dcpPath = TPath::Combine(dcpDir, packageName + L".dcp");
-                DeleteFile(dcpPath.c_str());
-                DeleteFile(ChangeFileExt(dcpPath, L".bpi").c_str());
-                DeleteFile(ChangeFileExt(dcpPath, L".obj").c_str());
+                if (DeleteFile(dcpPath.c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(dcpPath, L".bpi").c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(dcpPath, L".obj").c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(dcpPath, L".lib").c_str())) deletedCount++;
+                if (DeleteFile(ChangeFileExt(dcpPath, L".a").c_str())) deletedCount++;
             }
         }
     }
+    
+    LogToFile(L"  Deleted " + String(deletedCount) + L" files from BPL/DCP directories");
 }
 
 void TInstaller::AddToLibraryPath(const TIDEInfoPtr& ide,
@@ -1425,6 +1525,10 @@ void TInstaller::AddToCppPath(const TIDEInfoPtr& ide,
     String keyPath = ide->RegistryKey + L"\\C++\\Paths\\" + platformKey;
     String valueName = isBrowsingPath ? L"BrowsingPath" : L"LibraryPath";
     
+    LogToFile(L"AddToCppPath: [" + path + L"]");
+    LogToFile(L"  Platform: " + platformKey);
+    LogToFile(L"  ValueName: " + valueName);
+    
     std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
     reg->RootKey = HKEY_CURRENT_USER;
     
@@ -1438,9 +1542,101 @@ void TInstaller::AddToCppPath(const TIDEInfoPtr& ide,
                 currentPath = currentPath + L";";
             currentPath = currentPath + path;
             reg->WriteString(valueName, currentPath);
+            LogToFile(L"  SUCCESS: C++ path added");
+        }
+        else
+        {
+            LogToFile(L"  SKIPPED: C++ path already exists");
         }
         
         reg->CloseKey();
+    }
+    else
+    {
+        LogToFile(L"  ERROR: Failed to open C++ registry key");
+    }
+}
+
+void TInstaller::AddToCppIncludePath(const TIDEInfoPtr& ide,
+                                      TIDEPlatform platform,
+                                      const String& path)
+{
+    String platformKey;
+    switch (platform)
+    {
+        case TIDEPlatform::Win64: platformKey = L"Win64"; break;
+        case TIDEPlatform::Win64Modern: platformKey = L"Win64x"; break;
+        default: platformKey = L"Win32"; break;
+    }
+    
+    // C++Builder System Include Path is in "C++\\Paths" section as "IncludePath"
+    String keyPath = ide->RegistryKey + L"\\C++\\Paths\\" + platformKey;
+    String valueName = L"IncludePath";
+    
+    LogToFile(L"AddToCppIncludePath: [" + path + L"]");
+    LogToFile(L"  Platform: " + platformKey);
+    LogToFile(L"  Registry: HKCU\\" + keyPath + L"\\" + valueName);
+    
+    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
+    reg->RootKey = HKEY_CURRENT_USER;
+    
+    if (reg->OpenKey(keyPath, true))
+    {
+        String currentPath = reg->ReadString(valueName);
+        
+        if (currentPath.Pos(path) == 0)
+        {
+            if (!currentPath.IsEmpty() && !currentPath.EndsWith(L";"))
+                currentPath = currentPath + L";";
+            currentPath = currentPath + path;
+            reg->WriteString(valueName, currentPath);
+            LogToFile(L"  SUCCESS: C++ Include path added");
+        }
+        else
+        {
+            LogToFile(L"  SKIPPED: C++ Include path already exists");
+        }
+        
+        reg->CloseKey();
+    }
+    else
+    {
+        LogToFile(L"  ERROR: Failed to open C++ registry key for IncludePath");
+    }
+}
+
+void TInstaller::RemoveFromCppIncludePath(const TIDEInfoPtr& ide,
+                                           TIDEPlatform platform,
+                                           const String& path)
+{
+    String platformKey;
+    switch (platform)
+    {
+        case TIDEPlatform::Win64: platformKey = L"Win64"; break;
+        case TIDEPlatform::Win64Modern: platformKey = L"Win64x"; break;
+        default: platformKey = L"Win32"; break;
+    }
+    
+    String keyPath = ide->RegistryKey + L"\\C++\\Paths\\" + platformKey;
+    String valueName = L"IncludePath";
+    
+    LogToFile(L"RemoveFromCppIncludePath: [" + path + L"]");
+    LogToFile(L"  Platform: " + platformKey);
+    
+    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
+    reg->RootKey = HKEY_CURRENT_USER;
+    
+    if (reg->OpenKey(keyPath, false))
+    {
+        String currentPath = reg->ReadString(valueName);
+        
+        currentPath = StringReplace(currentPath, path + L";", L"", TReplaceFlags() << rfReplaceAll);
+        currentPath = StringReplace(currentPath, L";" + path, L"", TReplaceFlags() << rfReplaceAll);
+        currentPath = StringReplace(currentPath, path, L"", TReplaceFlags() << rfReplaceAll);
+        
+        reg->WriteString(valueName, currentPath);
+        reg->CloseKey();
+        LogToFile(L"  SUCCESS: C++ Include path removed");
     }
 }
 

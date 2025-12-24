@@ -52,25 +52,27 @@ namespace DxCore
 //
 // Runtime packages are compiled for target platforms (independent of IDE bitness):
 // - Win32: compiled with dcc32, used when building Win32 applications
-// - Win64: compiled with dcc64, used when building Win64 applications
-// - Win64x: NOT compiled (no dcc64x), artifacts generated from Win64 via mkexp
+// - Win64: compiled with dcc64, used when building Win64 applications  
+// - Win64x: compiled with dcc64 -jf:coffi, used when building Win64x (Modern) applications
 //
 // C++Builder support:
-// - When GenerateCppFiles is enabled, -JL flag generates .hpp, .bpi, .lib
-// - For Win64x (Modern C++), .hpp/.bpi are copied from Win64, .a generated via mkexp
+// - When GenerateCppFiles is enabled, -JL flag generates .hpp, .bpi, .lib/.a
+// - Win64 generates .a (ELF format for classic bcc64)
+// - Win64x generates .lib (COFF format for modern bcc64x)
 //---------------------------------------------------------------------------
 enum class TInstallOption
 {
     // Design-time registration (which IDE bitness to support)
-    RegisterFor32BitIDE,        // Register design-time packages for 32-bit IDE (always enabled)
-    RegisterFor64BitIDE,        // Register design-time packages for 64-bit IDE (optional)
+    RegisterFor32BitIDE,        // Register design-time packages for 32-bit IDE
+    RegisterFor64BitIDE,        // Register design-time packages for 64-bit IDE
     
     // Runtime compilation (which target platforms to support)
     CompileWin32Runtime,        // Compile runtime packages for Win32 target
-    CompileWin64Runtime,        // Compile runtime packages for Win64 target
+    CompileWin64Runtime,        // Compile runtime packages for Win64 target (ELF, .a)
+    CompileWin64xRuntime,       // Compile runtime packages for Win64x target (COFF, .lib)
     
     // C++Builder support
-    GenerateCppFiles,           // Generate .hpp/.bpi/.lib (and .a for Win64x via mkexp)
+    GenerateCppFiles,           // Generate .hpp/.bpi/.lib/.a
     
     // Other options
     AddBrowsingPath,            // Add source paths to IDE browsing path
@@ -162,7 +164,6 @@ private:
                                      TIDEPlatform platform,
                                      bool for32BitIDE, 
                                      bool for64BitIDE);
-    void GenerateWin64xArtifacts(const TIDEInfoPtr& ide);
     
     // Internal methods - Uninstallation  
     void UninstallIDE(const TIDEInfoPtr& ide, const TUninstallOptions& opts);
@@ -200,6 +201,12 @@ private:
                            TIDEPlatform platform,
                            const String& path,
                            bool isBrowsingPath);
+    void AddToCppIncludePath(const TIDEInfoPtr& ide,
+                              TIDEPlatform platform,
+                              const String& path);
+    void RemoveFromCppIncludePath(const TIDEInfoPtr& ide,
+                                   TIDEPlatform platform,
+                                   const String& path);
     bool RegisterPackage(const TIDEInfoPtr& ide,
                          const String& bplPath,
                          const String& description,

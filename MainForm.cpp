@@ -258,11 +258,13 @@ void TfrmMain::UpdateControlStates()
     {
         ChkTargetWin32->Enabled = true;
         ChkTargetWin64->Enabled = FSelectedIDE->SupportsWin64;
+        ChkTargetWin64x->Enabled = FSelectedIDE->SupportsWin64Modern;
     }
     else
     {
         ChkTargetWin32->Enabled = false;
         ChkTargetWin64->Enabled = false;
+        ChkTargetWin64x->Enabled = false;
     }
     
     // Other options
@@ -298,6 +300,7 @@ void TfrmMain::UpdateOptionsForSelectedIDE()
     // Target platforms
     ChkTargetWin32->Checked = opts.count(DxCore::TInstallOption::CompileWin32Runtime) > 0;
     ChkTargetWin64->Checked = opts.count(DxCore::TInstallOption::CompileWin64Runtime) > 0;
+    ChkTargetWin64x->Checked = opts.count(DxCore::TInstallOption::CompileWin64xRuntime) > 0;
     
     // Other options
     ChkNativeLookAndFeel->Checked = opts.count(DxCore::TInstallOption::NativeLookAndFeel) > 0;
@@ -331,6 +334,8 @@ void TfrmMain::SaveOptionsForSelectedIDE()
         opts.insert(DxCore::TInstallOption::CompileWin32Runtime);
     if (ChkTargetWin64->Checked && ChkTargetWin64->Enabled)
         opts.insert(DxCore::TInstallOption::CompileWin64Runtime);
+    if (ChkTargetWin64x->Checked && ChkTargetWin64x->Enabled)
+        opts.insert(DxCore::TInstallOption::CompileWin64xRuntime);
     
     // Other options
     opts.insert(DxCore::TInstallOption::AddBrowsingPath);

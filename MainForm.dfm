@@ -2022,7 +2022,6 @@ object frmMain: TfrmMain
     Color = clWhite
     ParentBackground = False
     TabOrder = 0
-    ExplicitWidth = 923
     object LblAppName: TLabel
       Left = 16
       Top = 10
@@ -2059,8 +2058,6 @@ object frmMain: TfrmMain
     Align = alClient
     TabOrder = 1
     OnChange = PageFunsChange
-    ExplicitWidth = 923
-    ExplicitHeight = 540
     object TabInstall: TTabSheet
       Caption = 'Install'
       object LblSourceDir: TLabel
@@ -2107,6 +2104,7 @@ object frmMain: TfrmMain
         Top = 65
         Width = 500
         Height = 400
+        ItemHeight = 15
         TabOrder = 3
         OnClickCheck = CheckListComponentsClickCheck
       end
@@ -2129,6 +2127,7 @@ object frmMain: TfrmMain
             Top = 18
             Width = 234
             Height = 65
+            ItemHeight = 15
             TabOrder = 0
             OnClick = CheckListIDEsClick
           end
@@ -2160,8 +2159,8 @@ object frmMain: TfrmMain
             Height = 17
             Caption = '32-bit IDE (always)'
             Checked = True
-            State = cbChecked
             Enabled = False
+            State = cbChecked
             TabOrder = 0
           end
           object ChkIDE64: TCheckBox
@@ -2176,9 +2175,9 @@ object frmMain: TfrmMain
         end
         object GroupTargets: TGroupBox
           Left = 0
-          Top = 170
+          Top = 191
           Width = 250
-          Height = 80
+          Height = 98
           Caption = 'Target Platforms (runtime)'
           TabOrder = 2
           object ChkTargetWin32: TCheckBox
@@ -2186,7 +2185,7 @@ object frmMain: TfrmMain
             Top = 22
             Width = 180
             Height = 17
-            Caption = 'Win32 (dcc32)'
+            Caption = 'Win32'
             Checked = True
             State = cbChecked
             TabOrder = 0
@@ -2197,16 +2196,27 @@ object frmMain: TfrmMain
             Top = 44
             Width = 180
             Height = 17
-            Caption = 'Win64 (dcc64)'
+            Caption = 'Win64'
             Checked = True
             State = cbChecked
             TabOrder = 1
             OnClick = TargetCheckBoxClick
           end
+          object ChkTargetWin64x: TCheckBox
+            Left = 10
+            Top = 67
+            Width = 180
+            Height = 17
+            Caption = 'Win64x'
+            Checked = True
+            State = cbChecked
+            TabOrder = 2
+            OnClick = TargetCheckBoxClick
+          end
         end
         object GroupOtherOptions: TGroupBox
-          Left = 0
-          Top = 255
+          Left = -8
+          Top = 295
           Width = 250
           Height = 100
           Caption = 'Options'
@@ -2425,8 +2435,6 @@ object frmMain: TfrmMain
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 2
-    ExplicitTop = 600
-    ExplicitWidth = 923
     object BtnRun: TButton
       Left = 510
       Top = 12

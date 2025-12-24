@@ -97,6 +97,7 @@ __published:
     TLabel *LblEmail;
     TLinkLabel *LinkEmail;
     TMemo *MemoChangelog;
+	TCheckBox *ChkTargetWin64x;
     
     void __fastcall FormCreate(TObject *Sender);
     void __fastcall FormDestroy(TObject *Sender);
