@@ -24,7 +24,7 @@ void __fastcall TfrmMain::FormCreate(TObject *Sender)
 {
     Caption = Application->Title;
     LblAppName->Caption = Application->Title;
-    LblVersion->Caption = L"v1.0.0 C++ Edition";
+    LblVersion->Caption = L"v2.0.0 C++ Edition";
     
     // Initialize installer
     FInstaller = std::make_unique<DxCore::TInstaller>();

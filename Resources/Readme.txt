@@ -13,6 +13,14 @@ Supported:
 
 Changelog
 --------------------------
+v2.0.0	2025/12/24
+	Asynchronous installation - UI stays responsive during compilation.
+	Win64x separate compilation with -jf:coffi -DDX_WIN64_MODERN flags.
+	C++ Include/Library paths - automatic registration for all platforms.
+	Win32 Classic compiler support - paths for Modern and Classic.
+	Improved logging - detailed logs for debugging.
+	Better error handling - graceful stop and error recovery.
+
 v1.0.0	2025/01/xx
 	Complete rewrite in C++Builder (x64 Modern / Clang).
 	No JCL dependency - direct Windows Registry access.

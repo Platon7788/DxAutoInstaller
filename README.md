@@ -60,7 +60,7 @@ DevExpress VCL Components Automatic Installer — completely rewritten in C++Bui
 **Three-step process for C++Builder:**
 - **Win32**: `dcc32 -JL` → `.dcu`, `.hpp`, `.lib` (OMF)
 - **Win64**: `dcc64 -JL` → `.dcu`, `.hpp`, `.a` (ELF)
-- **Win64x**: Generated from Win64 using `mkexp.exe` → `.lib` (COFF)
+- **Win64x**: `dcc64 -JL -jf:coffi -DDX_WIN64_MODERN` → `.dcu`, `.hpp`, `.lib` (COFF)
 
 ### 🔧 C++ Paths Registration
 
@@ -70,9 +70,12 @@ Automatically registers paths in IDE for all platforms:
 |-----------|-------------------|
 | Delphi Search Path | `Library\{Platform}\Search Path` |
 | Delphi Browsing Path | `Library\{Platform}\Browsing Path` |
-| C++ Include Path | `C++\Paths\{Platform}\IncludePath` |
-| C++ Library Path | `C++\Paths\{Platform}\LibraryPath` |
-| C++ Classic (Win32) | `C++\Paths\Win32\Classic\*` |
+| C++ Include Path (Win64/Win64x) | `C++\Paths\{Platform}\IncludePath` |
+| C++ Library Path (Win64/Win64x) | `C++\Paths\{Platform}\LibraryPath` |
+| C++ Include Path (Win32 Modern) | `C++\Paths\Win32\IncludePath_Clang` |
+| C++ Library Path (Win32 Modern) | `C++\Paths\Win32\LibraryPath_Clang` |
+| C++ Include Path (Win32 Classic) | `C++\Paths\Win32\Classic\IncludePath` |
+| C++ Library Path (Win32 Classic) | `C++\Paths\Win32\Classic\LibraryPath` |
 
 ### 🛠️ Building
 
@@ -123,7 +126,7 @@ Automatically registers paths in IDE for all platforms:
 **Трёхэтапный процесс для C++Builder:**
 - **Win32**: `dcc32 -JL` → `.dcu`, `.hpp`, `.lib` (OMF)
 - **Win64**: `dcc64 -JL` → `.dcu`, `.hpp`, `.a` (ELF)
-- **Win64x**: Генерируется из Win64 через `mkexp.exe` → `.lib` (COFF)
+- **Win64x**: `dcc64 -JL -jf:coffi -DDX_WIN64_MODERN` → `.dcu`, `.hpp`, `.lib` (COFF)
 
 ### 🔧 Регистрация C++ путей
 
@@ -133,9 +136,12 @@ Automatically registers paths in IDE for all platforms:
 |----------|------------------------|
 | Delphi Search Path | `Library\{Platform}\Search Path` |
 | Delphi Browsing Path | `Library\{Platform}\Browsing Path` |
-| C++ Include Path | `C++\Paths\{Platform}\IncludePath` |
-| C++ Library Path | `C++\Paths\{Platform}\LibraryPath` |
-| C++ Classic (Win32) | `C++\Paths\Win32\Classic\*` |
+| C++ Include Path (Win64/Win64x) | `C++\Paths\{Platform}\IncludePath` |
+| C++ Library Path (Win64/Win64x) | `C++\Paths\{Platform}\LibraryPath` |
+| C++ Include Path (Win32 Modern) | `C++\Paths\Win32\IncludePath_Clang` |
+| C++ Library Path (Win32 Modern) | `C++\Paths\Win32\LibraryPath_Clang` |
+| C++ Include Path (Win32 Classic) | `C++\Paths\Win32\Classic\IncludePath` |
+| C++ Library Path (Win32 Classic) | `C++\Paths\Win32\Classic\LibraryPath` |
 
 ### 🛠️ Сборка
 
