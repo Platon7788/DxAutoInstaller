@@ -71,7 +71,7 @@ TInstaller::TInstaller()
     FProfile = std::make_unique<TProfileManager>();
     FCompiler = std::make_unique<TPackageCompiler>();
     
-    LogToFile(L"=== DxAutoInstaller Started (BUILD: 2025-12-24 v13 - Win32 Classic) ===");
+    LogToFile(L"=== DxAutoInstaller Started (BUILD: 2025-12-24 v15 - Win32 Clang suffix) ===");
 }
 
 TInstaller::~TInstaller()
@@ -1658,50 +1658,66 @@ void TInstaller::AddToCppPath(const TIDEInfoPtr& ide,
         default: platformKey = L"Win32"; break;
     }
     
-    String valueName = isBrowsingPath ? L"BrowsingPath" : L"LibraryPath";
+    String baseValueName = isBrowsingPath ? L"BrowsingPath" : L"LibraryPath";
     
     LogToFile(L"AddToCppPath: [" + path + L"]");
     LogToFile(L"  Platform: " + platformKey);
-    LogToFile(L"  ValueName: " + valueName);
+    LogToFile(L"  Type: " + baseValueName);
     
-    // For Win32, add to BOTH Modern and Classic compiler paths
-    std::vector<String> keyPaths;
-    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
+    // For Win32, we need to add to BOTH Modern (Clang) and Classic compiler paths
+    // Win32 Modern uses: LibraryPath_Clang / BrowsingPath_Clang in C++\Paths\Win32
+    // Win32 Classic uses: LibraryPath / BrowsingPath in C++\Paths\Win32\Classic
+    // Win64/Win64x use: LibraryPath / BrowsingPath in C++\Paths\{Platform}
+    
+    struct PathInfo {
+        String keyPath;
+        String valueName;
+    };
+    
+    std::vector<PathInfo> paths;
     
     if (platform == TIDEPlatform::Win32)
     {
-        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+        // Win32 Modern (Clang) - uses _Clang suffix
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", baseValueName + L"_Clang"});
+        // Win32 Classic - uses standard name in Classic subfolder
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", baseValueName});
+    }
+    else
+    {
+        // Win64 and Win64x use standard names
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\" + platformKey, baseValueName});
     }
     
-    for (const auto& keyPath : keyPaths)
+    for (const auto& pathInfo : paths)
     {
-        LogToFile(L"  Registry: HKCU\\" + keyPath + L"\\" + valueName);
+        LogToFile(L"  Registry: HKCU\\" + pathInfo.keyPath + L"\\" + pathInfo.valueName);
         
         std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
         reg->RootKey = HKEY_CURRENT_USER;
         
-        if (reg->OpenKey(keyPath, true))
+        if (reg->OpenKey(pathInfo.keyPath, true))
         {
-            String currentPath = reg->ReadString(valueName);
+            String currentPath = reg->ReadString(pathInfo.valueName);
             
             if (currentPath.Pos(path) == 0)
             {
                 if (!currentPath.IsEmpty() && !currentPath.EndsWith(L";"))
                     currentPath = currentPath + L";";
                 currentPath = currentPath + path;
-                reg->WriteString(valueName, currentPath);
-                LogToFile(L"  SUCCESS: C++ path added to " + keyPath);
+                reg->WriteString(pathInfo.valueName, currentPath);
+                LogToFile(L"    SUCCESS: Path added");
             }
             else
             {
-                LogToFile(L"  SKIPPED: C++ path already exists in " + keyPath);
+                LogToFile(L"    SKIPPED: Path already exists");
             }
             
             reg->CloseKey();
         }
         else
         {
-            LogToFile(L"  WARNING: Could not open " + keyPath);
+            LogToFile(L"    WARNING: Could not open key");
         }
     }
 }
@@ -1721,50 +1737,60 @@ void TInstaller::AddToCppIncludePath(const TIDEInfoPtr& ide,
     LogToFile(L"AddToCppIncludePath: [" + path + L"]");
     LogToFile(L"  Platform: " + platformKey);
     
-    // For Win32, we need to add to BOTH Modern and Classic compiler paths
-    // Modern: C++\Paths\Win32\IncludePath
-    // Classic: C++\Paths\Win32\Classic\IncludePath
+    // For Win32, we need to add to BOTH Modern (Clang) and Classic compiler paths
+    // Win32 Modern uses: IncludePath_Clang in C++\Paths\Win32
+    // Win32 Classic uses: IncludePath in C++\Paths\Win32\Classic
+    // Win64/Win64x use: IncludePath in C++\Paths\{Platform}
     
-    std::vector<String> keyPaths;
-    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
+    struct PathInfo {
+        String keyPath;
+        String valueName;
+    };
     
-    // For Win32, also add to Classic compiler path
+    std::vector<PathInfo> paths;
+    
     if (platform == TIDEPlatform::Win32)
     {
-        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+        // Win32 Modern (Clang) - uses _Clang suffix
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", L"IncludePath_Clang"});
+        // Win32 Classic - uses standard name in Classic subfolder
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", L"IncludePath"});
+    }
+    else
+    {
+        // Win64 and Win64x use standard names
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\" + platformKey, L"IncludePath"});
     }
     
-    String valueName = L"IncludePath";
-    
-    for (const auto& keyPath : keyPaths)
+    for (const auto& pathInfo : paths)
     {
-        LogToFile(L"  Registry: HKCU\\" + keyPath + L"\\" + valueName);
+        LogToFile(L"  Registry: HKCU\\" + pathInfo.keyPath + L"\\" + pathInfo.valueName);
         
         std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
         reg->RootKey = HKEY_CURRENT_USER;
         
-        if (reg->OpenKey(keyPath, true))
+        if (reg->OpenKey(pathInfo.keyPath, true))
         {
-            String currentPath = reg->ReadString(valueName);
+            String currentPath = reg->ReadString(pathInfo.valueName);
             
             if (currentPath.Pos(path) == 0)
             {
                 if (!currentPath.IsEmpty() && !currentPath.EndsWith(L";"))
                     currentPath = currentPath + L";";
                 currentPath = currentPath + path;
-                reg->WriteString(valueName, currentPath);
-                LogToFile(L"  SUCCESS: C++ Include path added to " + keyPath);
+                reg->WriteString(pathInfo.valueName, currentPath);
+                LogToFile(L"    SUCCESS: Path added");
             }
             else
             {
-                LogToFile(L"  SKIPPED: C++ Include path already exists in " + keyPath);
+                LogToFile(L"    SKIPPED: Path already exists");
             }
             
             reg->CloseKey();
         }
         else
         {
-            LogToFile(L"  WARNING: Could not open " + keyPath);
+            LogToFile(L"    WARNING: Could not open key");
         }
     }
 }
@@ -1784,33 +1810,39 @@ void TInstaller::RemoveFromCppIncludePath(const TIDEInfoPtr& ide,
     LogToFile(L"RemoveFromCppIncludePath: [" + path + L"]");
     LogToFile(L"  Platform: " + platformKey);
     
-    // For Win32, remove from BOTH Modern and Classic compiler paths
-    std::vector<String> keyPaths;
-    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
+    struct PathInfo {
+        String keyPath;
+        String valueName;
+    };
+    
+    std::vector<PathInfo> paths;
     
     if (platform == TIDEPlatform::Win32)
     {
-        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", L"IncludePath_Clang"});
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", L"IncludePath"});
+    }
+    else
+    {
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\" + platformKey, L"IncludePath"});
     }
     
-    String valueName = L"IncludePath";
-    
-    for (const auto& keyPath : keyPaths)
+    for (const auto& pathInfo : paths)
     {
         std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
         reg->RootKey = HKEY_CURRENT_USER;
         
-        if (reg->OpenKey(keyPath, false))
+        if (reg->OpenKey(pathInfo.keyPath, false))
         {
-            String currentPath = reg->ReadString(valueName);
+            String currentPath = reg->ReadString(pathInfo.valueName);
             
             currentPath = StringReplace(currentPath, path + L";", L"", TReplaceFlags() << rfReplaceAll);
             currentPath = StringReplace(currentPath, L";" + path, L"", TReplaceFlags() << rfReplaceAll);
             currentPath = StringReplace(currentPath, path, L"", TReplaceFlags() << rfReplaceAll);
             
-            reg->WriteString(valueName, currentPath);
+            reg->WriteString(pathInfo.valueName, currentPath);
             reg->CloseKey();
-            LogToFile(L"  SUCCESS: C++ Include path removed from " + keyPath);
+            LogToFile(L"  Removed from " + pathInfo.keyPath);
         }
     }
 }
@@ -1866,31 +1898,39 @@ void TInstaller::RemoveFromCppPath(const TIDEInfoPtr& ide,
         default: platformKey = L"Win32"; break;
     }
     
-    String valueName = isBrowsingPath ? L"BrowsingPath" : L"LibraryPath";
+    String baseValueName = isBrowsingPath ? L"BrowsingPath" : L"LibraryPath";
     
-    // For Win32, remove from BOTH Modern and Classic compiler paths
-    std::vector<String> keyPaths;
-    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
+    struct PathInfo {
+        String keyPath;
+        String valueName;
+    };
+    
+    std::vector<PathInfo> paths;
     
     if (platform == TIDEPlatform::Win32)
     {
-        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", baseValueName + L"_Clang"});
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", baseValueName});
+    }
+    else
+    {
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\" + platformKey, baseValueName});
     }
     
-    for (const auto& keyPath : keyPaths)
+    for (const auto& pathInfo : paths)
     {
         std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
         reg->RootKey = HKEY_CURRENT_USER;
         
-        if (reg->OpenKey(keyPath, false))
+        if (reg->OpenKey(pathInfo.keyPath, false))
         {
-            String currentPath = reg->ReadString(valueName);
+            String currentPath = reg->ReadString(pathInfo.valueName);
             
             currentPath = StringReplace(currentPath, path + L";", L"", TReplaceFlags() << rfReplaceAll);
             currentPath = StringReplace(currentPath, L";" + path, L"", TReplaceFlags() << rfReplaceAll);
             currentPath = StringReplace(currentPath, path, L"", TReplaceFlags() << rfReplaceAll);
             
-            reg->WriteString(valueName, currentPath);
+            reg->WriteString(pathInfo.valueName, currentPath);
             reg->CloseKey();
         }
     }
