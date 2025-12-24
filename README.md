@@ -1,6 +1,6 @@
 # DxAutoInstaller C++ Edition
 
-**Version 1.0.0**
+**Version 2.0.0** (December 2025)
 
 ## Screenshots
 
@@ -24,42 +24,50 @@ DevExpress VCL Components Automatic Installer — completely rewritten in C++Bui
 
 - **No JCL dependency** — direct Windows Registry access
 - **No DevExpress UI dependency** — standard VCL components only
-- **RAD Studio 12/13 support** — BDS 23.0 (Athens) and BDS 37.0 (Florence)
+- **RAD Studio 12/13+ support** — BDS 23.0 (Athens) and BDS 37.0 (Florence)
 - **64-bit IDE support** — design-time packages for both 32-bit and 64-bit IDE
-- **Both IDE mode** — install for both IDE versions in single pass
-- **Win64 Modern (Clang/LLVM)** — automatic .hpp and .a generation for bcc64x
+- **Win64 Modern (Win64x)** — full support with COFF .lib generation via `-jf:coffi` flag
+- **Async threading** — responsive UI during compilation, instant Stop button
+- **C++ paths registration** — System Include Path and Library Path for all platforms
+- **Classic & Modern compilers** — paths registered for both Win32 compilers
 - **DevExpress VCL 25.1.x** — full support
-- **Clean uninstall** — complete removal of all compiled files
+- **Clean uninstall** — complete removal of all compiled files and registry entries
 
-### 🚀 IDE Type Options
+### 🆕 What's New in v2.0.0
+
+- **Asynchronous installation** — UI stays responsive during compilation
+- **Win64x separate compilation** — proper COFF .lib files with `-jf:coffi` flag
+- **C++ Include/Library paths** — automatic registration for all platforms
+- **Win32 Classic compiler support** — paths for both Modern (bcc32c) and Classic (bcc32)
+- **Improved logging** — detailed logs for debugging
+- **Better error handling** — graceful stop and error recovery
+
+### 🚀 Target Platform Options
 
 | Option | Description |
 |--------|-------------|
-| 32-bit IDE | Design-time packages compiled with dcc32, registered to `Known Packages` |
-| 64-bit IDE | Design-time packages compiled with dcc64, registered to `Known Packages x64` |
-| Both (32 and 64-bit) | Compile and register for both IDE versions in single installation |
+| Win32 | Runtime packages for 32-bit applications |
+| Win64 | Runtime packages for 64-bit applications (ELF format .a) |
+| Win64x | Runtime packages for Win64 Modern (COFF format .lib) |
 
 ### 📋 Compilation Strategy
 
-**32-bit IDE Mode:**
-- Design-time: dcc32 → `Bpl\` → `Known Packages`
-- Runtime: Win32, Win64, Win64x (if enabled)
+**Three separate compilations for C++Builder:**
+- **Win32**: `dcc32 -JL` → `.dcu`, `.hpp`, `.lib` (OMF)
+- **Win64**: `dcc64 -JL` → `.dcu`, `.hpp`, `.a` (ELF)
+- **Win64x**: `dcc64 -JL -jf:coffi` → `.dcu`, `.hpp`, `.lib` (COFF)
 
-**64-bit IDE Mode:**
-- Design-time: dcc64 → `Bpl\Win64\` → `Known Packages x64`
-- Runtime: Win64, Win64x only (Win32 disabled)
+### 🔧 C++ Paths Registration
 
-**Both IDE Mode:**
-- Design-time 32-bit: dcc32 → `Bpl\` → `Known Packages`
-- Design-time 64-bit: dcc64 → `Bpl\Win64\` → `Known Packages x64`
-- Runtime: Win32 and Win64/Win64x
+Automatically registers paths in IDE for all platforms:
 
-### 🔧 Win64x (Modern C++) Support
-
-When "Install to C++Builder" is enabled with Win64 compilation:
-1. `.hpp` files copied from Win64 to Win64x folder
-2. `.bpi` files copied to Win64x DCP folder
-3. `.a` import libraries generated via `mkexp.exe`
+| Path Type | Registry Location |
+|-----------|-------------------|
+| Delphi Search Path | `Library\{Platform}\Search Path` |
+| Delphi Browsing Path | `Library\{Platform}\Browsing Path` |
+| C++ Include Path | `C++\Paths\{Platform}\IncludePath` |
+| C++ Library Path | `C++\Paths\{Platform}\LibraryPath` |
+| C++ Classic (Win32) | `C++\Paths\Win32\Classic\*` |
 
 ### 🛠️ Building
 
@@ -67,13 +75,7 @@ When "Install to C++Builder" is enabled with Win64 compilation:
 2. Select Win64 Modern (Clang) platform
 3. Build
 
-**Tested:** Successfully built and tested with RAD Studio 13 Florence, Win64 Modern (x64 Clang) platform.
-
-### 🐛 Bug Reports
-
-**Please report any issues you find!**
-
-This will help improve the program in future versions. Create an Issue on GitHub or email me.
+**Tested:** RAD Studio 13 Florence, Win64 Modern (x64 Clang).
 
 ---
 
@@ -85,42 +87,50 @@ This will help improve the program in future versions. Create an Issue on GitHub
 
 - **Без зависимости от JCL** — прямой доступ к Windows Registry
 - **Без зависимости от DevExpress UI** — только стандартные VCL компоненты
-- **Поддержка RAD Studio 12/13** — BDS 23.0 (Athens) и BDS 37.0 (Florence)
+- **Поддержка RAD Studio 12/13+** — BDS 23.0 (Athens) и BDS 37.0 (Florence)
 - **Поддержка 64-bit IDE** — design-time пакеты для 32-bit и 64-bit IDE
-- **Режим Both IDE** — установка для обеих версий IDE за один проход
-- **Win64 Modern (Clang/LLVM)** — автоматическая генерация .hpp и .a для bcc64x
+- **Win64 Modern (Win64x)** — полная поддержка с генерацией COFF .lib через флаг `-jf:coffi`
+- **Асинхронная работа** — отзывчивый UI во время компиляции, мгновенная кнопка Stop
+- **Регистрация C++ путей** — System Include Path и Library Path для всех платформ
+- **Classic & Modern компиляторы** — пути для обоих Win32 компиляторов
 - **DevExpress VCL 25.1.x** — полная поддержка
-- **Чистое удаление** — полное удаление всех скомпилированных файлов
+- **Чистое удаление** — полное удаление всех файлов и записей реестра
 
-### 🚀 Опции типа IDE
+### 🆕 Что нового в v2.0.0
+
+- **Асинхронная установка** — UI остаётся отзывчивым во время компиляции
+- **Отдельная компиляция Win64x** — правильные COFF .lib файлы с флагом `-jf:coffi`
+- **C++ Include/Library пути** — автоматическая регистрация для всех платформ
+- **Поддержка Win32 Classic компилятора** — пути для Modern (bcc32c) и Classic (bcc32)
+- **Улучшенное логирование** — детальные логи для отладки
+- **Улучшенная обработка ошибок** — корректная остановка и восстановление
+
+### 🚀 Опции целевых платформ
 
 | Опция | Описание |
 |-------|----------|
-| 32-bit IDE | Design-time пакеты компилируются dcc32, регистрируются в `Known Packages` |
-| 64-bit IDE | Design-time пакеты компилируются dcc64, регистрируются в `Known Packages x64` |
-| Both (32 and 64-bit) | Компиляция и регистрация для обеих версий IDE за одну установку |
+| Win32 | Runtime пакеты для 32-bit приложений |
+| Win64 | Runtime пакеты для 64-bit приложений (ELF формат .a) |
+| Win64x | Runtime пакеты для Win64 Modern (COFF формат .lib) |
 
 ### 📋 Стратегия компиляции
 
-**Режим 32-bit IDE:**
-- Design-time: dcc32 → `Bpl\` → `Known Packages`
-- Runtime: Win32, Win64, Win64x (если включено)
+**Три отдельные компиляции для C++Builder:**
+- **Win32**: `dcc32 -JL` → `.dcu`, `.hpp`, `.lib` (OMF)
+- **Win64**: `dcc64 -JL` → `.dcu`, `.hpp`, `.a` (ELF)
+- **Win64x**: `dcc64 -JL -jf:coffi` → `.dcu`, `.hpp`, `.lib` (COFF)
 
-**Режим 64-bit IDE:**
-- Design-time: dcc64 → `Bpl\Win64\` → `Known Packages x64`
-- Runtime: только Win64, Win64x (Win32 отключен)
+### 🔧 Регистрация C++ путей
 
-**Режим Both IDE:**
-- Design-time 32-bit: dcc32 → `Bpl\` → `Known Packages`
-- Design-time 64-bit: dcc64 → `Bpl\Win64\` → `Known Packages x64`
-- Runtime: Win32 и Win64/Win64x
+Автоматически регистрирует пути в IDE для всех платформ:
 
-### 🔧 Поддержка Win64x (Modern C++)
-
-При включении "Install to C++Builder" с компиляцией Win64:
-1. `.hpp` файлы копируются из Win64 в папку Win64x
-2. `.bpi` файлы копируются в папку Win64x DCP
-3. `.a` import библиотеки генерируются через `mkexp.exe`
+| Тип пути | Расположение в реестре |
+|----------|------------------------|
+| Delphi Search Path | `Library\{Platform}\Search Path` |
+| Delphi Browsing Path | `Library\{Platform}\Browsing Path` |
+| C++ Include Path | `C++\Paths\{Platform}\IncludePath` |
+| C++ Library Path | `C++\Paths\{Platform}\LibraryPath` |
+| C++ Classic (Win32) | `C++\Paths\Win32\Classic\*` |
 
 ### 🛠️ Сборка
 
@@ -128,13 +138,7 @@ This will help improve the program in future versions. Create an Issue on GitHub
 2. Выберите платформу Win64 Modern (Clang)
 3. Build
 
-**Проверено:** Успешно собрано и протестировано в RAD Studio 13 Florence, платформа Win64 Modern (x64 Clang).
-
-### 🐛 Сообщения об ошибках
-
-**Пожалуйста, сообщайте о найденных проблемах!**
-
-Это поможет улучшить программу в будущих версиях. Создайте Issue на GitHub или напишите на email.
+**Проверено:** RAD Studio 13 Florence, платформа Win64 Modern (x64 Clang).
 
 ---
 
@@ -142,29 +146,38 @@ This will help improve the program in future versions. Create an Issue on GitHub
 
 ```
 Library\
-├── Sources\              # ALL sources / ВСЕ исходники (.pas, .dfm, .res)
+├── Sources\              # ALL sources (.pas, .dfm, .res, .dcr)
 │
-├── 290\                  # RAD Studio 12 compiled files
-│   ├── *.dcu             # Win32 compiled units
-│   ├── Win64\*.dcu       # Win64 compiled units
-│   └── Win64x\
-│       ├── *.hpp         # C++ headers
-│       └── *.a           # Import libs for bcc64x
+├── 370\                  # RAD Studio 13 compiled files
+│   ├── Win32\            # Win32 platform
+│   │   ├── *.dcu         # Compiled units
+│   │   ├── *.hpp         # C++ headers
+│   │   └── *.res         # Resources
+│   ├── Win64\            # Win64 platform (ELF)
+│   │   ├── *.dcu
+│   │   ├── *.hpp
+│   │   └── *.res
+│   └── Win64x\           # Win64 Modern (COFF)
+│       ├── *.dcu
+│       ├── *.hpp
+│       └── *.res
 │
-└── 370\                  # RAD Studio 13 compiled files
+Dcp\                      # Public Documents\Embarcadero\Studio\37.0\Dcp
+├── *.dcp, *.bpi, *.lib   # Win32 packages
+├── Win64\                # Win64 packages (.a)
+└── Win64x\               # Win64x packages (.lib COFF)
+
+Bpl\                      # Public Documents\Embarcadero\Studio\37.0\Bpl
+├── *.bpl                 # Win32 runtime packages
+├── Win64\*.bpl           # Win64 runtime packages
+└── Win64x\*.bpl          # Win64x runtime packages
 ```
-
-## 🔑 Registry Keys
-
-| IDE Type | Registry Key |
-|----------|--------------|
-| 32-bit IDE | `HKCU\SOFTWARE\Embarcadero\BDS\{version}\Known Packages` |
-| 64-bit IDE | `HKCU\SOFTWARE\Embarcadero\BDS\{version}\Known Packages x64` |
 
 ## 📝 Logging
 
-Log files created next to executable / Лог-файлы создаются рядом с exe:
-- Format: `DD_MM_YYYY_HH_MM.log`
+Log files created next to executable:
+- Detailed log: `DD_MM_YYYY_HH_MM.log`
+- Summary log: `DxAutoInstaller.log`
 
 ---
 
@@ -172,10 +185,7 @@ Log files created next to executable / Лог-файлы создаются ря
 
 This software is distributed **free of charge** (Freeware).
 
-Эта программа распространяется **бесплатно** (Freeware).
-
 When redistributing, both authors must be credited:
-При распространении обязательно указывать обоих авторов:
 
 - **Original Delphi version**: [Delphier](https://github.com/Delphier/DxAutoInstaller)
 - **C++ Edition**: Platon
@@ -183,10 +193,6 @@ When redistributing, both authors must be credited:
 ## 👏 Credits & Acknowledgments
 
 Special thanks to **Delphier** for the original Delphi version of DxAutoInstaller!
-
-Огромная благодарность **Delphier** за оригинальную Delphi версию DxAutoInstaller!
-
-The concept and architecture of this program are based on his work.
 
 ## 📧 Contact
 
@@ -196,15 +202,12 @@ The concept and architecture of this program are based on his work.
 
 ## ☕ Support / Поддержка
 
-If this program was useful and you want to buy me a coffee — I would be very grateful!
-
-Если программа была полезна и вы хотите угостить меня кофе — буду очень признателен!
+If this program was useful — I would be very grateful for your support!
 
 - **PayPal**: vteme777@gmail.com
-- **Other methods / Другие способы**: write to email
 
 ---
 
-**DxAutoInstaller C++ Edition v1.0.0** © 2025 Platon
+**DxAutoInstaller C++ Edition v2.0.0** © 2025 Platon
 
 Based on original work by [Delphier](https://github.com/Delphier/DxAutoInstaller)

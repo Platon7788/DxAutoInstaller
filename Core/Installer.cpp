@@ -7,6 +7,7 @@
 #include <IOUtils.hpp>
 #include <Vcl.Forms.hpp>
 #include <DateUtils.hpp>
+#include <System.Threading.hpp>
 #include <fstream>
 #include <vector>
 
@@ -70,7 +71,7 @@ TInstaller::TInstaller()
     FProfile = std::make_unique<TProfileManager>();
     FCompiler = std::make_unique<TPackageCompiler>();
     
-    LogToFile(L"=== DxAutoInstaller Started (BUILD: 2025-12-24 v11) ===");
+    LogToFile(L"=== DxAutoInstaller Started (BUILD: 2025-12-24 v13 - Win32 Classic) ===");
 }
 
 TInstaller::~TInstaller()
@@ -376,16 +377,19 @@ void TInstaller::SetState(TInstallerState value)
 
 void TInstaller::Stop()
 {
+    LogToFile(L"Stop() called - setting atomic stop flag");
+    FStopped.store(true);
     SetState(TInstallerState::Stopped);
 }
 
 void TInstaller::CheckStoppedState()
 {
-    Application->ProcessMessages();
-    if (FState == TInstallerState::Stopped)
+    // Thread-safe check using atomic flag
+    if (FStopped.load())
     {
-        SetState(TInstallerState::Normal);
-        Abort();
+        LogToFile(L"CheckStoppedState: Stop requested, aborting...");
+        SetState(TInstallerState::Stopped);
+        throw EAbort(L"Operation cancelled by user");
     }
 }
 
@@ -395,13 +399,25 @@ void TInstaller::UpdateProgress(const TIDEInfoPtr& ide,
                                  const String& target)
 {
     if (FOnProgress)
-        FOnProgress(ide, component, task, target);
+    {
+        // Queue UI update to main thread
+        TThread::Queue(nullptr, [this, ide, component, task, target]() {
+            if (FOnProgress)
+                FOnProgress(ide, component, task, target);
+        });
+    }
 }
 
 void TInstaller::UpdateProgressState(const String& stateText)
 {
     if (FOnProgressState)
-        FOnProgressState(stateText);
+    {
+        // Queue UI update to main thread
+        TThread::Queue(nullptr, [this, stateText]() {
+            if (FOnProgressState)
+                FOnProgressState(stateText);
+        });
+    }
 }
 
 String TInstaller::GetInstallLibraryDir(const String& installFileDir,
@@ -758,59 +774,180 @@ void TInstaller::DeleteDevExpressFilesFromDir(const String& dir, const std::set<
 
 void TInstaller::Install(const std::vector<TIDEInfoPtr>& ides)
 {
-    LogToFile(L"=== Install started ===");
+    LogToFile(L"=== Install started (sync) ===");
+    FStopped.store(false);  // Reset stop flag
     SetState(TInstallerState::Running);
+    
+    bool success = true;
+    String errorMessage;
     
     for (const auto& ide : ides)
     {
         try
         {
+            CheckStoppedState();
             InstallIDE(ide);
         }
         catch (const EAbort&)
         {
             LogToFile(L"EAbort exception caught");
+            success = false;
+            errorMessage = L"Operation cancelled by user";
             break;
         }
         catch (Exception& e)
         {
             LogToFile(L"EXCEPTION: " + e.Message);
+            success = false;
+            errorMessage = e.Message;
             throw;
         }
     }
     
     LogToFile(L"=== Install completed ===");
     SetState(TInstallerState::Normal);
+    
+    if (FOnComplete)
+    {
+        TThread::Queue(nullptr, [this, success, errorMessage]() {
+            if (FOnComplete)
+                FOnComplete(success, errorMessage);
+        });
+    }
+}
+
+void TInstaller::InstallAsync(const std::vector<TIDEInfoPtr>& ides)
+{
+    LogToFile(L"=== InstallAsync started ===");
+    FStopped.store(false);  // Reset stop flag
+    SetState(TInstallerState::Running);
+    
+    // Run installation in background thread
+    TTask::Run([this, ides]() {
+        bool success = true;
+        String errorMessage;
+        
+        try
+        {
+            for (const auto& ide : ides)
+            {
+                CheckStoppedState();
+                InstallIDE(ide);
+            }
+            LogToFile(L"=== InstallAsync completed successfully ===");
+        }
+        catch (const EAbort&)
+        {
+            LogToFile(L"InstallAsync: EAbort exception caught");
+            success = false;
+            errorMessage = L"Operation cancelled by user";
+        }
+        catch (Exception& e)
+        {
+            LogToFile(L"InstallAsync EXCEPTION: " + e.Message);
+            success = false;
+            errorMessage = e.Message;
+        }
+        
+        // Update state and notify completion on main thread
+        TThread::Queue(nullptr, [this, success, errorMessage]() {
+            SetState(TInstallerState::Normal);
+            if (FOnComplete)
+                FOnComplete(success, errorMessage);
+        });
+    });
 }
 
 void TInstaller::Uninstall(const std::vector<TIDEInfoPtr>& ides, const TUninstallOptions& uninstallOpts)
 {
-    LogToFile(L"=== Uninstall started ===");
+    LogToFile(L"=== Uninstall started (sync) ===");
     LogToFile(L"  Uninstall32BitIDE: " + String(uninstallOpts.Uninstall32BitIDE ? L"true" : L"false"));
     LogToFile(L"  Uninstall64BitIDE: " + String(uninstallOpts.Uninstall64BitIDE ? L"true" : L"false"));
     
+    FStopped.store(false);  // Reset stop flag
     SetState(TInstallerState::Running);
+    
+    bool success = true;
+    String errorMessage;
     
     for (const auto& ide : ides)
     {
         try
         {
+            CheckStoppedState();
             UninstallIDE(ide, uninstallOpts);
         }
         catch (const EAbort&)
         {
             LogToFile(L"EAbort exception caught during uninstall");
+            success = false;
+            errorMessage = L"Operation cancelled by user";
             break;
         }
         catch (Exception& e)
         {
             LogToFile(L"EXCEPTION during uninstall: " + e.Message);
+            success = false;
+            errorMessage = e.Message;
             throw;
         }
     }
     
     LogToFile(L"=== Uninstall completed ===");
     SetState(TInstallerState::Normal);
+    
+    if (FOnComplete)
+    {
+        TThread::Queue(nullptr, [this, success, errorMessage]() {
+            if (FOnComplete)
+                FOnComplete(success, errorMessage);
+        });
+    }
+}
+
+void TInstaller::UninstallAsync(const std::vector<TIDEInfoPtr>& ides, const TUninstallOptions& uninstallOpts)
+{
+    LogToFile(L"=== UninstallAsync started ===");
+    LogToFile(L"  Uninstall32BitIDE: " + String(uninstallOpts.Uninstall32BitIDE ? L"true" : L"false"));
+    LogToFile(L"  Uninstall64BitIDE: " + String(uninstallOpts.Uninstall64BitIDE ? L"true" : L"false"));
+    
+    FStopped.store(false);  // Reset stop flag
+    SetState(TInstallerState::Running);
+    
+    // Run uninstallation in background thread
+    TTask::Run([this, ides, uninstallOpts]() {
+        bool success = true;
+        String errorMessage;
+        
+        try
+        {
+            for (const auto& ide : ides)
+            {
+                CheckStoppedState();
+                UninstallIDE(ide, uninstallOpts);
+            }
+            LogToFile(L"=== UninstallAsync completed successfully ===");
+        }
+        catch (const EAbort&)
+        {
+            LogToFile(L"UninstallAsync: EAbort exception caught");
+            success = false;
+            errorMessage = L"Operation cancelled by user";
+        }
+        catch (Exception& e)
+        {
+            LogToFile(L"UninstallAsync EXCEPTION: " + e.Message);
+            success = false;
+            errorMessage = e.Message;
+        }
+        
+        // Update state and notify completion on main thread
+        TThread::Queue(nullptr, [this, success, errorMessage]() {
+            SetState(TInstallerState::Normal);
+            if (FOnComplete)
+                FOnComplete(success, errorMessage);
+        });
+    });
 }
 
 void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
@@ -1521,39 +1658,51 @@ void TInstaller::AddToCppPath(const TIDEInfoPtr& ide,
         default: platformKey = L"Win32"; break;
     }
     
-    // C++Builder uses "C++\\Paths" section
-    String keyPath = ide->RegistryKey + L"\\C++\\Paths\\" + platformKey;
     String valueName = isBrowsingPath ? L"BrowsingPath" : L"LibraryPath";
     
     LogToFile(L"AddToCppPath: [" + path + L"]");
     LogToFile(L"  Platform: " + platformKey);
     LogToFile(L"  ValueName: " + valueName);
     
-    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
-    reg->RootKey = HKEY_CURRENT_USER;
+    // For Win32, add to BOTH Modern and Classic compiler paths
+    std::vector<String> keyPaths;
+    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
     
-    if (reg->OpenKey(keyPath, true))
+    if (platform == TIDEPlatform::Win32)
     {
-        String currentPath = reg->ReadString(valueName);
+        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+    }
+    
+    for (const auto& keyPath : keyPaths)
+    {
+        LogToFile(L"  Registry: HKCU\\" + keyPath + L"\\" + valueName);
         
-        if (currentPath.Pos(path) == 0)
+        std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
+        reg->RootKey = HKEY_CURRENT_USER;
+        
+        if (reg->OpenKey(keyPath, true))
         {
-            if (!currentPath.IsEmpty() && !currentPath.EndsWith(L";"))
-                currentPath = currentPath + L";";
-            currentPath = currentPath + path;
-            reg->WriteString(valueName, currentPath);
-            LogToFile(L"  SUCCESS: C++ path added");
+            String currentPath = reg->ReadString(valueName);
+            
+            if (currentPath.Pos(path) == 0)
+            {
+                if (!currentPath.IsEmpty() && !currentPath.EndsWith(L";"))
+                    currentPath = currentPath + L";";
+                currentPath = currentPath + path;
+                reg->WriteString(valueName, currentPath);
+                LogToFile(L"  SUCCESS: C++ path added to " + keyPath);
+            }
+            else
+            {
+                LogToFile(L"  SKIPPED: C++ path already exists in " + keyPath);
+            }
+            
+            reg->CloseKey();
         }
         else
         {
-            LogToFile(L"  SKIPPED: C++ path already exists");
+            LogToFile(L"  WARNING: Could not open " + keyPath);
         }
-        
-        reg->CloseKey();
-    }
-    else
-    {
-        LogToFile(L"  ERROR: Failed to open C++ registry key");
     }
 }
 
@@ -1569,39 +1718,54 @@ void TInstaller::AddToCppIncludePath(const TIDEInfoPtr& ide,
         default: platformKey = L"Win32"; break;
     }
     
-    // C++Builder System Include Path is in "C++\\Paths" section as "IncludePath"
-    String keyPath = ide->RegistryKey + L"\\C++\\Paths\\" + platformKey;
-    String valueName = L"IncludePath";
-    
     LogToFile(L"AddToCppIncludePath: [" + path + L"]");
     LogToFile(L"  Platform: " + platformKey);
-    LogToFile(L"  Registry: HKCU\\" + keyPath + L"\\" + valueName);
     
-    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
-    reg->RootKey = HKEY_CURRENT_USER;
+    // For Win32, we need to add to BOTH Modern and Classic compiler paths
+    // Modern: C++\Paths\Win32\IncludePath
+    // Classic: C++\Paths\Win32\Classic\IncludePath
     
-    if (reg->OpenKey(keyPath, true))
+    std::vector<String> keyPaths;
+    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
+    
+    // For Win32, also add to Classic compiler path
+    if (platform == TIDEPlatform::Win32)
     {
-        String currentPath = reg->ReadString(valueName);
+        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+    }
+    
+    String valueName = L"IncludePath";
+    
+    for (const auto& keyPath : keyPaths)
+    {
+        LogToFile(L"  Registry: HKCU\\" + keyPath + L"\\" + valueName);
         
-        if (currentPath.Pos(path) == 0)
+        std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
+        reg->RootKey = HKEY_CURRENT_USER;
+        
+        if (reg->OpenKey(keyPath, true))
         {
-            if (!currentPath.IsEmpty() && !currentPath.EndsWith(L";"))
-                currentPath = currentPath + L";";
-            currentPath = currentPath + path;
-            reg->WriteString(valueName, currentPath);
-            LogToFile(L"  SUCCESS: C++ Include path added");
+            String currentPath = reg->ReadString(valueName);
+            
+            if (currentPath.Pos(path) == 0)
+            {
+                if (!currentPath.IsEmpty() && !currentPath.EndsWith(L";"))
+                    currentPath = currentPath + L";";
+                currentPath = currentPath + path;
+                reg->WriteString(valueName, currentPath);
+                LogToFile(L"  SUCCESS: C++ Include path added to " + keyPath);
+            }
+            else
+            {
+                LogToFile(L"  SKIPPED: C++ Include path already exists in " + keyPath);
+            }
+            
+            reg->CloseKey();
         }
         else
         {
-            LogToFile(L"  SKIPPED: C++ Include path already exists");
+            LogToFile(L"  WARNING: Could not open " + keyPath);
         }
-        
-        reg->CloseKey();
-    }
-    else
-    {
-        LogToFile(L"  ERROR: Failed to open C++ registry key for IncludePath");
     }
 }
 
@@ -1617,26 +1781,37 @@ void TInstaller::RemoveFromCppIncludePath(const TIDEInfoPtr& ide,
         default: platformKey = L"Win32"; break;
     }
     
-    String keyPath = ide->RegistryKey + L"\\C++\\Paths\\" + platformKey;
-    String valueName = L"IncludePath";
-    
     LogToFile(L"RemoveFromCppIncludePath: [" + path + L"]");
     LogToFile(L"  Platform: " + platformKey);
     
-    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
-    reg->RootKey = HKEY_CURRENT_USER;
+    // For Win32, remove from BOTH Modern and Classic compiler paths
+    std::vector<String> keyPaths;
+    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
     
-    if (reg->OpenKey(keyPath, false))
+    if (platform == TIDEPlatform::Win32)
     {
-        String currentPath = reg->ReadString(valueName);
+        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+    }
+    
+    String valueName = L"IncludePath";
+    
+    for (const auto& keyPath : keyPaths)
+    {
+        std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
+        reg->RootKey = HKEY_CURRENT_USER;
         
-        currentPath = StringReplace(currentPath, path + L";", L"", TReplaceFlags() << rfReplaceAll);
-        currentPath = StringReplace(currentPath, L";" + path, L"", TReplaceFlags() << rfReplaceAll);
-        currentPath = StringReplace(currentPath, path, L"", TReplaceFlags() << rfReplaceAll);
-        
-        reg->WriteString(valueName, currentPath);
-        reg->CloseKey();
-        LogToFile(L"  SUCCESS: C++ Include path removed");
+        if (reg->OpenKey(keyPath, false))
+        {
+            String currentPath = reg->ReadString(valueName);
+            
+            currentPath = StringReplace(currentPath, path + L";", L"", TReplaceFlags() << rfReplaceAll);
+            currentPath = StringReplace(currentPath, L";" + path, L"", TReplaceFlags() << rfReplaceAll);
+            currentPath = StringReplace(currentPath, path, L"", TReplaceFlags() << rfReplaceAll);
+            
+            reg->WriteString(valueName, currentPath);
+            reg->CloseKey();
+            LogToFile(L"  SUCCESS: C++ Include path removed from " + keyPath);
+        }
     }
 }
 
@@ -1691,22 +1866,33 @@ void TInstaller::RemoveFromCppPath(const TIDEInfoPtr& ide,
         default: platformKey = L"Win32"; break;
     }
     
-    String keyPath = ide->RegistryKey + L"\\C++\\Paths\\" + platformKey;
     String valueName = isBrowsingPath ? L"BrowsingPath" : L"LibraryPath";
     
-    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
-    reg->RootKey = HKEY_CURRENT_USER;
+    // For Win32, remove from BOTH Modern and Classic compiler paths
+    std::vector<String> keyPaths;
+    keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey);
     
-    if (reg->OpenKey(keyPath, false))
+    if (platform == TIDEPlatform::Win32)
     {
-        String currentPath = reg->ReadString(valueName);
+        keyPaths.push_back(ide->RegistryKey + L"\\C++\\Paths\\" + platformKey + L"\\Classic");
+    }
+    
+    for (const auto& keyPath : keyPaths)
+    {
+        std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ | KEY_WRITE));
+        reg->RootKey = HKEY_CURRENT_USER;
         
-        currentPath = StringReplace(currentPath, path + L";", L"", TReplaceFlags() << rfReplaceAll);
-        currentPath = StringReplace(currentPath, L";" + path, L"", TReplaceFlags() << rfReplaceAll);
-        currentPath = StringReplace(currentPath, path, L"", TReplaceFlags() << rfReplaceAll);
-        
-        reg->WriteString(valueName, currentPath);
-        reg->CloseKey();
+        if (reg->OpenKey(keyPath, false))
+        {
+            String currentPath = reg->ReadString(valueName);
+            
+            currentPath = StringReplace(currentPath, path + L";", L"", TReplaceFlags() << rfReplaceAll);
+            currentPath = StringReplace(currentPath, L";" + path, L"", TReplaceFlags() << rfReplaceAll);
+            currentPath = StringReplace(currentPath, path, L"", TReplaceFlags() << rfReplaceAll);
+            
+            reg->WriteString(valueName, currentPath);
+            reg->CloseKey();
+        }
     }
 }
 

@@ -32,6 +32,11 @@ void __fastcall TfrmMain::FormCreate(TObject *Sender)
     FInstaller->SetOnProgress(OnProgress);
     FInstaller->SetOnProgressState(OnProgressState);
     
+    // Set completion callback
+    FInstaller->SetOnComplete([this](bool success, const String& message) {
+        OnInstallComplete(success, message);
+    });
+    
     // Create progress form
     FProgressForm = new TfrmProgress(this);
     FProgressForm->SetInstaller(FInstaller.get());
@@ -439,16 +444,11 @@ void TfrmMain::RunInstaller()
         return;
     }
     
-    Hide();
-    try
-    {
-        FProgressForm->Initialize();
-        FInstaller->Install(ides);
-    }
-    __finally
-    {
-        Show();
-    }
+    // Show progress form (don't hide main form - it stays responsive)
+    FProgressForm->Initialize();
+    
+    // Start async installation
+    FInstaller->InstallAsync(ides);
 }
 
 //---------------------------------------------------------------------------
@@ -485,16 +485,11 @@ void __fastcall TfrmMain::ActUninstallExecute(TObject *Sender)
         return;
     }
     
-    Hide();
-    try
-    {
-        FProgressForm->Initialize();
-        FInstaller->Uninstall(ides, uninstallOpts);
-    }
-    __finally
-    {
-        Show();
-    }
+    // Show progress form
+    FProgressForm->Initialize();
+    
+    // Start async uninstallation
+    FInstaller->UninstallAsync(ides, uninstallOpts);
 }
 
 //---------------------------------------------------------------------------
@@ -570,4 +565,11 @@ void __fastcall TfrmMain::OnProgress(const DxCore::TIDEInfoPtr& ide,
 void __fastcall TfrmMain::OnProgressState(const String& stateText)
 {
     FProgressForm->UpdateProgressState(stateText);
+}
+
+//---------------------------------------------------------------------------
+void TfrmMain::OnInstallComplete(bool success, const String& message)
+{
+    // Called from main thread when async operation completes
+    FProgressForm->OnComplete(success, message);
 }

@@ -26,6 +26,11 @@
 //    - Win32: HKCU\...\Library\Win32
 //    - Win64: HKCU\...\Library\Win64
 //    - Win64x: HKCU\...\Library\Win64x (for C++Builder Modern)
+//
+// 5. Threading model:
+//    - Heavy work (compilation, file copying) runs in background thread
+//    - UI updates are synchronized via TThread::Queue
+//    - Stop flag is atomic for thread-safe cancellation
 //---------------------------------------------------------------------------
 #ifndef InstallerH
 #define InstallerH
@@ -35,6 +40,8 @@
 #include <Vcl.Forms.hpp>
 #include <set>
 #include <map>
+#include <atomic>
+#include <functional>
 #include "IDEDetector.h"
 #include "Component.h"
 #include "ProfileManager.h"
@@ -118,6 +125,8 @@ typedef void __fastcall (__closure *TProgressCallback)(
     
 typedef void __fastcall (__closure *TProgressStateCallback)(const String& stateText);
 
+typedef std::function<void(bool success, const String& message)> TCompletionCallback;
+
 //---------------------------------------------------------------------------
 // Installer class
 //---------------------------------------------------------------------------
@@ -133,6 +142,7 @@ private:
     
     String FInstallFileDir;
     TInstallerState FState;
+    std::atomic<bool> FStopped{false};  // Thread-safe stop flag
     
     // Per-IDE data (key = BDS version string)
     std::map<String, TComponentList> FComponents;
@@ -142,6 +152,7 @@ private:
     // Callbacks
     TProgressCallback FOnProgress;
     TProgressStateCallback FOnProgressState;
+    TCompletionCallback FOnComplete;
     
     // Internal methods - Setup
     void DoSetInstallFileDir(const String& value);
@@ -251,10 +262,16 @@ public:
     TThirdPartyComponentSet GetThirdPartyComponents(const TIDEInfoPtr& ide) const;
     void SetThirdPartyComponents(const TIDEInfoPtr& ide, const TThirdPartyComponentSet& components);
     
-    // Install/Uninstall
+    // Install/Uninstall (synchronous - for backward compatibility)
     void Install(const std::vector<TIDEInfoPtr>& ides);
     void Uninstall(const std::vector<TIDEInfoPtr>& ides, const TUninstallOptions& uninstallOpts);
+    
+    // Install/Uninstall (asynchronous - runs in background thread)
+    void InstallAsync(const std::vector<TIDEInfoPtr>& ides);
+    void UninstallAsync(const std::vector<TIDEInfoPtr>& ides, const TUninstallOptions& uninstallOpts);
+    
     void Stop();
+    bool IsStopped() const { return FStopped.load(); }
     
     // Search for new packages not in profile
     void SearchNewPackages(TStringList* list);
@@ -268,6 +285,7 @@ public:
     // Callbacks
     void SetOnProgress(TProgressCallback callback) { FOnProgress = callback; }
     void SetOnProgressState(TProgressStateCallback callback) { FOnProgressState = callback; }
+    void SetOnComplete(TCompletionCallback callback) { FOnComplete = callback; }
 };
 
 //---------------------------------------------------------------------------

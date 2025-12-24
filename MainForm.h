@@ -141,6 +141,9 @@ private:
                                const String& target);
     void __fastcall OnProgressState(const String& stateText);
     
+    // Completion callback (called from main thread)
+    void OnInstallComplete(bool success, const String& message);
+    
 public:
     __fastcall TfrmMain(TComponent* Owner);
 };
