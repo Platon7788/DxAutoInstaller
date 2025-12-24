@@ -186,11 +186,14 @@ String TPackageCompiler::BuildCommandLine(const TIDEInfoPtr& ide,
         if (!options.DCPOutputDir.IsEmpty())
         {
             cmd = cmd + L" " + CompilerOptions::BPI_OUTPUT_DIR + L"\"" + options.DCPOutputDir + L"\"";
-            cmd = cmd + L" " + CompilerOptions::OBJ_OUTPUT_DIR + L"\"" + options.DCPOutputDir + L"\"";
         }
         
+        // Object files (.obj, .o) go to Library dir, not DCP dir
         if (!options.UnitOutputDir.IsEmpty())
+        {
+            cmd = cmd + L" " + CompilerOptions::OBJ_OUTPUT_DIR + L"\"" + options.UnitOutputDir + L"\"";
             cmd = cmd + L" " + CompilerOptions::HPP_OUTPUT_DIR + L"\"" + options.UnitOutputDir + L"\"";
+        }
     }
     
     return cmd;
