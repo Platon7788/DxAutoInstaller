@@ -10,6 +10,11 @@
 </p>
 
 <p align="center">
+  <img src="Images/DxAutoInstaller_progress.png" alt="DxAutoInstaller - Installation Progress" width="80%" />
+  <br><em>Installation Progress / Процесс установки</em>
+</p>
+
+<p align="center">
   <img src="Images/DxAutoInstaller_unistall.png" alt="DxAutoInstaller - Uninstall Tab" width="80%" />
   <br><em>Uninstall Tab / Вкладка удаления</em>
 </p>
