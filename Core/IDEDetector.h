@@ -87,6 +87,7 @@ public:
     String GetDCC32Path() const;
     String GetDCC64Path() const;
     String GetDCC64XPath() const;  // Modern compiler
+    String GetMkExpPath() const;   // mkexp.exe for generating import library from .bpl (use -p flag)
     
     // Output paths - for compiled packages
     String GetBPLOutputPath(TIDEPlatform platform) const;

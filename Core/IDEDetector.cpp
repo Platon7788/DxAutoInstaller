@@ -38,6 +38,13 @@ String TIDEInfo::GetDCC64XPath() const
     return TPath::Combine(RootDir, L"bin64\\dcc64x.exe");
 }
 
+String TIDEInfo::GetMkExpPath() const
+{
+    // mkexp.exe is in bin folder
+    // Use -p flag when calling it to specify PE input (BPL files)
+    return TPath::Combine(BinDir, L"mkexp.exe");
+}
+
 // Helper function to expand IDE macros like $(BDSCOMMONDIR), $(Platform)
 static String ExpandIDEMacros(const String& path, const String& bdsVersion, const String& platform)
 {

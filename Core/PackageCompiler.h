@@ -74,6 +74,11 @@ public:
                            TIDEPlatform platform,
                            const TCompileOptions& options);
     
+    // Generate COFF .lib from .bpl using mkexp.exe (for Win64x)
+    TCompileResult GenerateCoffLib(const TIDEInfoPtr& ide,
+                                    const String& bplPath,
+                                    const String& libOutputPath);
+    
     // Output callback
     void SetOnOutput(TOutputCallback callback) { FOnOutput = callback; }
     
@@ -106,6 +111,7 @@ namespace CompilerOptions
     
     // C++Builder options
     const String GENERATE_CPP = L"-JL";          // Generate .lib, .bpi, .hpp
+    const String GENERATE_COFF = L"-jf:coffi";   // Generate COFF format .lib (for Win64x compatibility)
     const String BPI_OUTPUT_DIR = L"-NB";        // -NB"path"
     const String HPP_OUTPUT_DIR = L"-NH";        // -NH"path"
     const String OBJ_OUTPUT_DIR = L"-NO";        // -NO"path"

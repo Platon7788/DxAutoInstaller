@@ -71,7 +71,7 @@ TInstaller::TInstaller()
     FProfile = std::make_unique<TProfileManager>();
     FCompiler = std::make_unique<TPackageCompiler>();
     
-    LogToFile(L"=== DxAutoInstaller Started (BUILD: 2025-12-24 v15 - Win32 Clang suffix) ===");
+    LogToFile(L"=== DxAutoInstaller Started (BUILD: 2025-12-24 v16 - mkexp for Win64x) ===");
 }
 
 TInstaller::~TInstaller()
@@ -1121,9 +1121,8 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
             if (compileWin64)
                 CompilePackage(ide, TIDEPlatform::Win64, comp, pkg);
             
-            // Win64x (Modern) - compile separately with -jf:coffi flag
-            if (compileWin64x)
-                CompilePackage(ide, TIDEPlatform::Win64Modern, comp, pkg);
+            // Win64x (Modern) - generate COFF .lib from Win64 .bpl using mkexp
+            // This is done after Win64 compilation, not as separate compilation
         }
     }
     
@@ -1146,10 +1145,70 @@ void TInstaller::InstallIDE(const TIDEInfoPtr& ide)
             if (compileWin64)
                 CompilePackage(ide, TIDEPlatform::Win64, comp, pkg);
             
-            // Win64x (Modern) - compile separately with -jf:coffi flag
-            if (compileWin64x)
-                CompilePackage(ide, TIDEPlatform::Win64Modern, comp, pkg);
+            // Win64x (Modern) - generate COFF .lib from Win64 .bpl using mkexp
+            // This is done after Win64 compilation, not as separate compilation
         }
+    }
+    
+    // ========================================
+    // Phase 3.5: Compile Win64x (Modern) packages
+    // ========================================
+    // Win64x is compiled separately with -JL -jf:coffi -DDX_WIN64_MODERN flags
+    // This generates COFF .lib files compatible with bcc64x/ld.lld linker
+    if (compileWin64x && generateCppFiles)
+    {
+        LogToFile(L"=== Compiling Win64x (Modern) packages ===");
+        
+        // Copy resource files to Win64x library directory
+        String libDir64x = GetInstallLibraryDir(FInstallFileDir, ide, TIDEPlatform::Win64Modern);
+        ForceDirectories(libDir64x);
+        
+        std::set<String> resourceExtensions;
+        resourceExtensions.insert(L".dfm");
+        resourceExtensions.insert(L".res");
+        
+        for (const auto& comp : components)
+        {
+            if (comp->State != TComponentState::Install)
+                continue;
+                
+            String compSourcesDir = TProfileManager::GetComponentSourcesDir(
+                FInstallFileDir, comp->Profile->ComponentName);
+            if (DirectoryExists(compSourcesDir))
+                CopySourceFilesFiltered(compSourcesDir, libDir64x, resourceExtensions);
+        }
+        
+        // Compile REQUIRED packages for Win64x
+        for (const auto& comp : components)
+        {
+            if (comp->State != TComponentState::Install)
+                continue;
+                
+            for (const auto& pkg : comp->Packages)
+            {
+                if (!pkg->Required)
+                    continue;
+                    
+                CompilePackage(ide, TIDEPlatform::Win64Modern, comp, pkg);
+            }
+        }
+        
+        // Compile OPTIONAL packages for Win64x
+        for (const auto& comp : components)
+        {
+            if (comp->State != TComponentState::Install)
+                continue;
+                
+            for (const auto& pkg : comp->Packages)
+            {
+                if (pkg->Required)
+                    continue;
+                    
+                CompilePackage(ide, TIDEPlatform::Win64Modern, comp, pkg);
+            }
+        }
+        
+        LogToFile(L"=== Win64x compilation completed ===");
     }
     
     // ========================================
@@ -1418,10 +1477,14 @@ void TInstaller::AddLibraryPaths(const TIDEInfoPtr& ide, TIDEPlatform platform)
         String dcpDir = ide->GetDCPOutputPath(platform);
         AddToCppPath(ide, platform, dcpDir, false);
         
+        // Add sources directory to C++ Library Path for .res/.dfm files
+        AddToCppPath(ide, platform, installSourcesDir, false);
+        
         LogToFile(L"  Added C++ paths:");
         LogToFile(L"    IncludePath: " + libDir);
         LogToFile(L"    IncludePath: " + installSourcesDir);
         LogToFile(L"    LibraryPath: " + dcpDir);
+        LogToFile(L"    LibraryPath: " + installSourcesDir);
     }
 }
 

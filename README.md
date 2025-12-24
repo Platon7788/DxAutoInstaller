@@ -57,10 +57,10 @@ DevExpress VCL Components Automatic Installer — completely rewritten in C++Bui
 
 ### 📋 Compilation Strategy
 
-**Three separate compilations for C++Builder:**
+**Three-step process for C++Builder:**
 - **Win32**: `dcc32 -JL` → `.dcu`, `.hpp`, `.lib` (OMF)
 - **Win64**: `dcc64 -JL` → `.dcu`, `.hpp`, `.a` (ELF)
-- **Win64x**: `dcc64 -JL -jf:coffi` → `.dcu`, `.hpp`, `.lib` (COFF)
+- **Win64x**: Generated from Win64 using `mkexp.exe` → `.lib` (COFF)
 
 ### 🔧 C++ Paths Registration
 
@@ -120,10 +120,10 @@ Automatically registers paths in IDE for all platforms:
 
 ### 📋 Стратегия компиляции
 
-**Три отдельные компиляции для C++Builder:**
+**Трёхэтапный процесс для C++Builder:**
 - **Win32**: `dcc32 -JL` → `.dcu`, `.hpp`, `.lib` (OMF)
 - **Win64**: `dcc64 -JL` → `.dcu`, `.hpp`, `.a` (ELF)
-- **Win64x**: `dcc64 -JL -jf:coffi` → `.dcu`, `.hpp`, `.lib` (COFF)
+- **Win64x**: Генерируется из Win64 через `mkexp.exe` → `.lib` (COFF)
 
 ### 🔧 Регистрация C++ путей
 

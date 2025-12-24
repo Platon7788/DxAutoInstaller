@@ -10,16 +10,17 @@
 //
 // 2. Runtime packages (non-dcl):
 //    - Compile for each target platform user wants to develop for
-//    - Win32: dcc32.exe
-//    - Win64: dcc64.exe  
-//    - Win64Modern: NOT directly compiled! (dcc64x doesn't exist for Delphi)
+//    - Win32: dcc32.exe with -JL flag
+//    - Win64: dcc64.exe with -JL flag (generates .a files)
+//    - Win64Modern: dcc64.exe with -JL -jf:coffi -DDX_WIN64_MODERN flags
+//      (generates COFF .lib files for bcc64x/ld.lld linker)
 //
 // 3. C++Builder Modern (Win64x/bcc64x) support:
-//    - When "Install to C++Builder" is enabled and Win64 is compiled:
-//      a) .hpp files are copied from Win64 to Win64x folder (identical)
-//      b) .bpi files are copied from Win64 DCP to Win64x DCP folder
-//      c) .a import libraries are generated using mkexp.exe from .bpl
-//    - This allows C++Builder Modern projects to link against DevExpress
+//    - Win64x IS compiled separately with special flags!
+//    - Uses dcc64.exe (same as Win64) but with additional flags:
+//      -jf:coffi - generate COFF format .lib instead of ELF .a
+//      -DDX_WIN64_MODERN - define for conditional compilation
+//    - Output goes to separate Win64x directories
 //
 // 4. Library paths:
 //    - Each platform has separate search/browsing paths in registry
@@ -58,14 +59,15 @@ namespace DxCore
 // - 64-bit IDE loads BPLs from Bpl\Win64\, registered in "Known Packages x64"
 //
 // Runtime packages are compiled for target platforms (independent of IDE bitness):
-// - Win32: compiled with dcc32, used when building Win32 applications
-// - Win64: compiled with dcc64, used when building Win64 applications  
-// - Win64x: compiled with dcc64 -jf:coffi, used when building Win64x (Modern) applications
+// - Win32: compiled with dcc32 -JL, generates .lib (OMF format)
+// - Win64: compiled with dcc64 -JL, generates .a (ELF format)
+// - Win64x: compiled with dcc64 -JL -jf:coffi -DDX_WIN64_MODERN, generates .lib (COFF format)
 //
 // C++Builder support:
 // - When GenerateCppFiles is enabled, -JL flag generates .hpp, .bpi, .lib/.a
+// - Win32 generates .lib (OMF format for classic bcc32)
 // - Win64 generates .a (ELF format for classic bcc64)
-// - Win64x generates .lib (COFF format for modern bcc64x)
+// - Win64x generates .lib (COFF format for modern bcc64x/ld.lld)
 //---------------------------------------------------------------------------
 enum class TInstallOption
 {
