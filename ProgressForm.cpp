@@ -13,7 +13,8 @@ TfrmProgress *frmProgress;
 //---------------------------------------------------------------------------
 __fastcall TfrmProgress::TfrmProgress(TComponent* Owner)
     : TForm(Owner),
-      FInstaller(nullptr)
+      FInstaller(nullptr),
+      FIsRunning(false)
 {
     FTargetLogs = std::make_unique<TStringList>();
 }
@@ -27,8 +28,21 @@ void __fastcall TfrmProgress::FormCreate(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TfrmProgress::FormCloseQuery(TObject *Sender, bool &CanClose)
 {
-    CanClose = (FInstaller == nullptr) || 
-               (FInstaller->GetState() == DxCore::TInstallerState::Normal);
+    // Allow close only if not running
+    CanClose = !FIsRunning;
+    
+    if (!CanClose)
+    {
+        // Ask user if they want to stop
+        if (Application->MessageBox(
+                L"Operation is in progress. Do you want to stop it?",
+                L"Confirm",
+                MB_ICONQUESTION | MB_YESNO) == IDYES)
+        {
+            if (FInstaller)
+                FInstaller->Stop();
+        }
+    }
 }
 
 //---------------------------------------------------------------------------
@@ -51,7 +65,8 @@ void TfrmProgress::Initialize()
     FTargetLogs->Clear();
     FCurrentTarget = L"";
     FErrorCount = 0;
-    BtnAction->Action = ActClose;
+    FIsRunning = true;
+    BtnAction->Action = ActStop;
     
     // Log start
     MemoLogs->Lines->Add(L"Installation started at " + FormatDateTime(L"yyyy-mm-dd hh:nn:ss", Now()));
@@ -109,33 +124,34 @@ void TfrmProgress::UpdateProgressState(const String& stateText)
     // Scroll to bottom
     SendMessage(MemoLogs->Handle, EM_LINESCROLL, 0, MemoLogs->Lines->Count);
     
-    switch (FInstaller->GetState())
+    // Check for errors in the state text
+    if (stateText.Pos(L"ERROR") > 0 || stateText.Pos(L"FAILED") > 0)
     {
-        case DxCore::TInstallerState::Normal:
-            BtnAction->Action = ActClose;
-            LblTitle->Caption = L"Finished!";
-            
-            // Save log to file
-            SaveLogToFile();
-            
-            Close();
-            ShowModal();
-            break;
-            
-        case DxCore::TInstallerState::Error:
-            FErrorCount++;
-            if (Application->MessageBox(
-                    (FTargetLogs->Text + L"\n\nAn error occurred. Continue?").c_str(),
-                    L"Error",
-                    MB_ICONQUESTION | MB_OKCANCEL) == IDCANCEL)
-            {
-                ActStop->Execute();
-            }
-            break;
-            
-        default:
-            break;
+        FErrorCount++;
     }
+}
+
+//---------------------------------------------------------------------------
+void TfrmProgress::OnComplete(bool success, const String& message)
+{
+    FIsRunning = false;
+    BtnAction->Action = ActClose;
+    
+    if (success)
+    {
+        LblTitle->Caption = L"Finished!";
+        MemoLogs->Lines->Add(L"");
+        MemoLogs->Lines->Add(L"=== Operation completed successfully ===");
+    }
+    else
+    {
+        LblTitle->Caption = L"Stopped";
+        MemoLogs->Lines->Add(L"");
+        MemoLogs->Lines->Add(L"=== Operation stopped: " + message + L" ===");
+    }
+    
+    // Save log to file
+    SaveLogToFile();
 }
 
 //---------------------------------------------------------------------------

@@ -2022,7 +2022,6 @@ object frmMain: TfrmMain
     Color = clWhite
     ParentBackground = False
     TabOrder = 0
-    ExplicitWidth = 923
     object LblAppName: TLabel
       Left = 16
       Top = 10
@@ -2059,8 +2058,6 @@ object frmMain: TfrmMain
     Align = alClient
     TabOrder = 1
     OnChange = PageFunsChange
-    ExplicitWidth = 923
-    ExplicitHeight = 540
     object TabInstall: TTabSheet
       Caption = 'Install'
       object LblSourceDir: TLabel
@@ -2107,6 +2104,7 @@ object frmMain: TfrmMain
         Top = 65
         Width = 500
         Height = 400
+        ItemHeight = 15
         TabOrder = 3
         OnClickCheck = CheckListComponentsClickCheck
       end
@@ -2129,6 +2127,7 @@ object frmMain: TfrmMain
             Top = 18
             Width = 234
             Height = 65
+            ItemHeight = 15
             TabOrder = 0
             OnClick = CheckListIDEsClick
           end
@@ -2153,41 +2152,32 @@ object frmMain: TfrmMain
             Font.Style = []
             ParentFont = False
           end
-          object RadioIDE32: TRadioButton
+          object ChkIDE32: TCheckBox
             Left = 10
             Top = 22
-            Width = 90
-            Height = 17
-            Caption = '32-bit IDE'
-            Checked = True
-            TabOrder = 0
-            TabStop = True
-            OnClick = RadioIDETypeClick
-          end
-          object RadioIDE64: TRadioButton
-            Left = 120
-            Top = 22
-            Width = 90
-            Height = 17
-            Caption = '64-bit IDE'
-            TabOrder = 1
-            OnClick = RadioIDETypeClick
-          end
-          object ChkIDEBoth: TCheckBox
-            Left = 10
-            Top = 46
             Width = 200
             Height = 17
-            Caption = 'Both (32 and 64-bit IDE)'
-            TabOrder = 2
-            OnClick = ChkIDEBothClick
+            Caption = '32-bit IDE (always)'
+            Checked = True
+            Enabled = False
+            State = cbChecked
+            TabOrder = 0
+          end
+          object ChkIDE64: TCheckBox
+            Left = 10
+            Top = 44
+            Width = 200
+            Height = 17
+            Caption = '64-bit IDE (optional)'
+            TabOrder = 1
+            OnClick = ChkIDE64Click
           end
         end
         object GroupTargets: TGroupBox
           Left = 0
-          Top = 190
+          Top = 191
           Width = 250
-          Height = 100
+          Height = 98
           Caption = 'Target Platforms (runtime)'
           TabOrder = 2
           object ChkTargetWin32: TCheckBox
@@ -2195,7 +2185,7 @@ object frmMain: TfrmMain
             Top = 22
             Width = 180
             Height = 17
-            Caption = 'Win32 (dcc32)'
+            Caption = 'Win32'
             Checked = True
             State = cbChecked
             TabOrder = 0
@@ -2206,25 +2196,26 @@ object frmMain: TfrmMain
             Top = 44
             Width = 180
             Height = 17
-            Caption = 'Win64 (dcc64)'
+            Caption = 'Win64'
             Checked = True
             State = cbChecked
             TabOrder = 1
             OnClick = TargetCheckBoxClick
           end
-          object ChkTargetWin64Modern: TCheckBox
+          object ChkTargetWin64x: TCheckBox
             Left = 10
-            Top = 66
-            Width = 200
+            Top = 67
+            Width = 180
             Height = 17
-            Caption = 'Win64x (auto with C++)'
-            Enabled = False
+            Caption = 'Win64x'
+            Checked = True
+            State = cbChecked
             TabOrder = 2
             OnClick = TargetCheckBoxClick
           end
         end
         object GroupOtherOptions: TGroupBox
-          Left = 0
+          Left = -8
           Top = 295
           Width = 250
           Height = 100
@@ -2240,12 +2231,12 @@ object frmMain: TfrmMain
             State = cbChecked
             TabOrder = 0
           end
-          object ChkInstallCpp: TCheckBox
+          object ChkGenerateCpp: TCheckBox
             Left = 10
             Top = 44
             Width = 200
             Height = 17
-            Caption = 'Install to C++Builder'
+            Caption = 'Generate C++ files (.hpp)'
             TabOrder = 1
           end
           object ChkHideBase: TCheckBox
@@ -2283,35 +2274,26 @@ object frmMain: TfrmMain
         Left = 580
         Top = 40
         Width = 200
-        Height = 100
-        Caption = 'IDE Type to uninstall'
+        Height = 80
+        Caption = 'Uninstall from IDE'
         TabOrder = 1
-        object RadioUninstall32: TRadioButton
+        object ChkUninstall32: TCheckBox
           Left = 10
           Top = 25
-          Width = 150
+          Width = 180
           Height = 17
-          Caption = '32-bit IDE packages'
+          Caption = '32-bit IDE'
           Checked = True
+          State = cbChecked
           TabOrder = 0
-          TabStop = True
         end
-        object RadioUninstall64: TRadioButton
+        object ChkUninstall64: TCheckBox
           Left = 10
           Top = 50
-          Width = 150
+          Width = 180
           Height = 17
-          Caption = '64-bit IDE packages'
+          Caption = '64-bit IDE'
           TabOrder = 1
-        end
-        object ChkUninstallBoth: TCheckBox
-          Left = 10
-          Top = 72
-          Width = 150
-          Height = 17
-          Caption = 'Both (32 and 64-bit)'
-          TabOrder = 2
-          OnClick = ChkUninstallBothClick
         end
       end
     end
@@ -2453,8 +2435,6 @@ object frmMain: TfrmMain
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 2
-    ExplicitTop = 600
-    ExplicitWidth = 923
     object BtnRun: TButton
       Left = 510
       Top = 12

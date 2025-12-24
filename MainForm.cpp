@@ -32,6 +32,11 @@ void __fastcall TfrmMain::FormCreate(TObject *Sender)
     FInstaller->SetOnProgress(OnProgress);
     FInstaller->SetOnProgressState(OnProgressState);
     
+    // Set completion callback
+    FInstaller->SetOnComplete([this](bool success, const String& message) {
+        OnInstallComplete(success, message);
+    });
+    
     // Create progress form
     FProgressForm = new TfrmProgress(this);
     FProgressForm->SetInstaller(FInstaller.get());
@@ -239,43 +244,46 @@ void TfrmMain::UpdateControlStates()
     bool hasIDE = (FSelectedIDE != nullptr);
     bool hasSourceDir = !EditSourceDir->Text.IsEmpty();
     
+    // IDE Options - 32-bit always enabled, 64-bit optional for RS12+
     GroupIDEOptions->Enabled = hasIDE;
     if (hasIDE)
     {
         int bdsNum = StrToIntDef(FSelectedIDE->BDSVersion.SubString(1, 
             FSelectedIDE->BDSVersion.Pos(L".") - 1), 0);
-        RadioIDE32->Enabled = !ChkIDEBoth->Checked;
-        RadioIDE64->Enabled = (bdsNum >= 23) && !ChkIDEBoth->Checked;
-        ChkIDEBoth->Enabled = (bdsNum >= 23);
+        ChkIDE64->Enabled = (bdsNum >= 23);  // 64-bit IDE available from RS12
     }
     else
     {
-        RadioIDE32->Enabled = false;
-        RadioIDE64->Enabled = false;
-        ChkIDEBoth->Enabled = false;
+        ChkIDE64->Enabled = false;
     }
     
+    // Target platforms
     GroupTargets->Enabled = hasIDE && hasSourceDir;
     if (hasIDE && hasSourceDir)
-        UpdateTargetCheckboxes();
+    {
+        ChkTargetWin32->Enabled = true;
+        ChkTargetWin64->Enabled = FSelectedIDE->SupportsWin64;
+        ChkTargetWin64x->Enabled = FSelectedIDE->SupportsWin64Modern;
+    }
     else
     {
         ChkTargetWin32->Enabled = false;
         ChkTargetWin64->Enabled = false;
-        ChkTargetWin64Modern->Enabled = false;
+        ChkTargetWin64x->Enabled = false;
     }
     
+    // Other options
     GroupOtherOptions->Enabled = hasIDE && hasSourceDir;
     if (hasIDE && hasSourceDir)
     {
         ChkNativeLookAndFeel->Enabled = true;
-        ChkInstallCpp->Enabled = FSelectedIDE->Personality != DxCore::TIDEPersonality::Delphi;
+        ChkGenerateCpp->Enabled = FSelectedIDE->Personality != DxCore::TIDEPersonality::Delphi;
         ChkHideBase->Enabled = true;
     }
     else
     {
         ChkNativeLookAndFeel->Enabled = false;
-        ChkInstallCpp->Enabled = false;
+        ChkGenerateCpp->Enabled = false;
         ChkHideBase->Enabled = false;
     }
     
@@ -291,62 +299,26 @@ void TfrmMain::UpdateOptionsForSelectedIDE()
     
     DxCore::TInstallOptionSet opts = FInstaller->GetOptions(FSelectedIDE);
     
-    bool useBothIDE = opts.count(DxCore::TInstallOption::UseBothIDE) > 0;
-    bool use64BitIDE = opts.count(DxCore::TInstallOption::Use64BitIDE) > 0;
+    // IDE options - 32-bit always checked, 64-bit optional
+    ChkIDE64->Checked = opts.count(DxCore::TInstallOption::RegisterFor64BitIDE) > 0;
     
-    ChkIDEBoth->Checked = useBothIDE;
-    RadioIDE32->Enabled = !useBothIDE;
-    RadioIDE64->Enabled = !useBothIDE;
-    
-    if (!useBothIDE)
-    {
-        RadioIDE32->Checked = !use64BitIDE;
-        RadioIDE64->Checked = use64BitIDE;
-    }
-    
-    UpdateTargetCheckboxes();
-    
+    // Target platforms
     ChkTargetWin32->Checked = opts.count(DxCore::TInstallOption::CompileWin32Runtime) > 0;
     ChkTargetWin64->Checked = opts.count(DxCore::TInstallOption::CompileWin64Runtime) > 0;
-    ChkTargetWin64Modern->Checked = false;
+    ChkTargetWin64x->Checked = opts.count(DxCore::TInstallOption::CompileWin64xRuntime) > 0;
     
+    // Other options
     ChkNativeLookAndFeel->Checked = opts.count(DxCore::TInstallOption::NativeLookAndFeel) > 0;
-    ChkInstallCpp->Checked = opts.count(DxCore::TInstallOption::InstallToCppBuilder) > 0;
-    ChkInstallCpp->Enabled = FSelectedIDE->Personality != DxCore::TIDEPersonality::Delphi;
+    ChkGenerateCpp->Checked = opts.count(DxCore::TInstallOption::GenerateCppFiles) > 0;
+    ChkGenerateCpp->Enabled = FSelectedIDE->Personality != DxCore::TIDEPersonality::Delphi;
 }
 
 //---------------------------------------------------------------------------
-void TfrmMain::UpdateTargetCheckboxes()
+void __fastcall TfrmMain::ChkIDE64Click(TObject *Sender)
 {
-    if (FSelectedIDE == nullptr)
-        return;
-    
-    bool isBothIDE = ChkIDEBoth->Checked;
-    bool is64BitIDE = RadioIDE64->Checked && !isBothIDE;
-    
-    if (isBothIDE)
-    {
-        ChkTargetWin32->Enabled = true;
-        ChkTargetWin32->Checked = true;
-        ChkTargetWin64->Enabled = true;
+    // When 64-bit IDE is enabled, ensure Win64 runtime is also enabled
+    if (ChkIDE64->Checked && !ChkTargetWin64->Checked)
         ChkTargetWin64->Checked = true;
-        ChkTargetWin64Modern->Enabled = false;
-    }
-    else if (is64BitIDE)
-    {
-        ChkTargetWin32->Enabled = false;
-        ChkTargetWin32->Checked = false;
-        ChkTargetWin64->Enabled = true;
-        ChkTargetWin64Modern->Enabled = false;
-        if (!ChkTargetWin64->Checked)
-            ChkTargetWin64->Checked = true;
-    }
-    else
-    {
-        ChkTargetWin32->Enabled = true;
-        ChkTargetWin64->Enabled = true;
-        ChkTargetWin64Modern->Enabled = false;
-    }
 }
 
 //---------------------------------------------------------------------------
@@ -357,43 +329,33 @@ void TfrmMain::SaveOptionsForSelectedIDE()
     
     DxCore::TInstallOptionSet opts;
     
-    if (ChkIDEBoth->Checked)
-        opts.insert(DxCore::TInstallOption::UseBothIDE);
-    else if (RadioIDE64->Checked)
-        opts.insert(DxCore::TInstallOption::Use64BitIDE);
+    // IDE registration - 32-bit always, 64-bit optional
+    opts.insert(DxCore::TInstallOption::RegisterFor32BitIDE);
+    if (ChkIDE64->Checked)
+        opts.insert(DxCore::TInstallOption::RegisterFor64BitIDE);
     
+    // Target platforms
     if (ChkTargetWin32->Checked && ChkTargetWin32->Enabled)
         opts.insert(DxCore::TInstallOption::CompileWin32Runtime);
     if (ChkTargetWin64->Checked && ChkTargetWin64->Enabled)
         opts.insert(DxCore::TInstallOption::CompileWin64Runtime);
+    if (ChkTargetWin64x->Checked && ChkTargetWin64x->Enabled)
+        opts.insert(DxCore::TInstallOption::CompileWin64xRuntime);
     
+    // Other options
     opts.insert(DxCore::TInstallOption::AddBrowsingPath);
-    
     if (ChkNativeLookAndFeel->Checked)
         opts.insert(DxCore::TInstallOption::NativeLookAndFeel);
-    if (ChkInstallCpp->Checked && ChkInstallCpp->Enabled)
-        opts.insert(DxCore::TInstallOption::InstallToCppBuilder);
+    if (ChkGenerateCpp->Checked && ChkGenerateCpp->Enabled)
+        opts.insert(DxCore::TInstallOption::GenerateCppFiles);
     
     FInstaller->SetOptions(FSelectedIDE, opts);
 }
 
 //---------------------------------------------------------------------------
-void __fastcall TfrmMain::ChkIDEBothClick(TObject *Sender)
-{
-    RadioIDE32->Enabled = !ChkIDEBoth->Checked;
-    RadioIDE64->Enabled = !ChkIDEBoth->Checked;
-    UpdateTargetCheckboxes();
-}
-
-//---------------------------------------------------------------------------
-void __fastcall TfrmMain::RadioIDETypeClick(TObject *Sender)
-{
-    UpdateTargetCheckboxes();
-}
-
-//---------------------------------------------------------------------------
 void __fastcall TfrmMain::TargetCheckBoxClick(TObject *Sender)
 {
+    // Ensure at least one target is selected
     if (!ChkTargetWin32->Checked && !ChkTargetWin64->Checked)
     {
         TCheckBox* cb = dynamic_cast<TCheckBox*>(Sender);
@@ -465,7 +427,7 @@ std::vector<DxCore::TIDEInfoPtr> TfrmMain::GetSelectedIDEs(TCheckListBox* checkL
 }
 
 //---------------------------------------------------------------------------
-void TfrmMain::RunInstaller(bool install)
+void TfrmMain::RunInstaller()
 {
     SaveOptionsForSelectedIDE();
     
@@ -475,27 +437,18 @@ void TfrmMain::RunInstaller(bool install)
         return;
     }
     
-    auto ides = GetSelectedIDEs(install ? CheckListIDEs : CheckListUninstall);
+    auto ides = GetSelectedIDEs(CheckListIDEs);
     if (ides.empty())
     {
         ShowMessage(L"Please select at least one IDE.");
         return;
     }
     
-    Hide();
-    try
-    {
-        FProgressForm->Initialize();
-        
-        if (install)
-            FInstaller->Install(ides);
-        else
-            FInstaller->Uninstall(ides);
-    }
-    __finally
-    {
-        Show();
-    }
+    // Show progress form (don't hide main form - it stays responsive)
+    FProgressForm->Initialize();
+    
+    // Start async installation
+    FInstaller->InstallAsync(ides);
 }
 
 //---------------------------------------------------------------------------
@@ -507,7 +460,7 @@ void __fastcall TfrmMain::ActInstallExecute(TObject *Sender)
         return;
     }
     
-    RunInstaller(true);
+    RunInstaller();
 }
 
 //---------------------------------------------------------------------------
@@ -520,50 +473,23 @@ void __fastcall TfrmMain::ActUninstallExecute(TObject *Sender)
         return;
     }
     
-    bool uninstall32 = RadioUninstall32->Checked || ChkUninstallBoth->Checked;
-    bool uninstall64 = RadioUninstall64->Checked || ChkUninstallBoth->Checked;
+    // Build uninstall options from checkboxes
+    DxCore::TUninstallOptions uninstallOpts;
+    uninstallOpts.Uninstall32BitIDE = ChkUninstall32->Checked;
+    uninstallOpts.Uninstall64BitIDE = ChkUninstall64->Checked;
+    uninstallOpts.DeleteCompiledFiles = true;
     
-    for (const auto& ide : ides)
+    if (!uninstallOpts.Uninstall32BitIDE && !uninstallOpts.Uninstall64BitIDE)
     {
-        DxCore::TInstallOptionSet opts = FInstaller->GetOptions(ide);
-        opts.erase(DxCore::TInstallOption::Use64BitIDE);
-        opts.erase(DxCore::TInstallOption::UseBothIDE);
-        
-        if (uninstall64 && !uninstall32)
-            opts.insert(DxCore::TInstallOption::Use64BitIDE);
-        
-        FInstaller->SetOptions(ide, opts);
+        ShowMessage(L"Please select at least one IDE type to uninstall.");
+        return;
     }
     
-    if (uninstall32 && uninstall64)
-    {
-        for (const auto& ide : ides)
-        {
-            DxCore::TInstallOptionSet opts = FInstaller->GetOptions(ide);
-            opts.erase(DxCore::TInstallOption::Use64BitIDE);
-            FInstaller->SetOptions(ide, opts);
-        }
-        RunInstaller(false);
-        
-        for (const auto& ide : ides)
-        {
-            DxCore::TInstallOptionSet opts = FInstaller->GetOptions(ide);
-            opts.insert(DxCore::TInstallOption::Use64BitIDE);
-            FInstaller->SetOptions(ide, opts);
-        }
-        RunInstaller(false);
-    }
-    else
-    {
-        RunInstaller(false);
-    }
-}
-
-//---------------------------------------------------------------------------
-void __fastcall TfrmMain::ChkUninstallBothClick(TObject *Sender)
-{
-    RadioUninstall32->Enabled = !ChkUninstallBoth->Checked;
-    RadioUninstall64->Enabled = !ChkUninstallBoth->Checked;
+    // Show progress form
+    FProgressForm->Initialize();
+    
+    // Start async uninstallation
+    FInstaller->UninstallAsync(ides, uninstallOpts);
 }
 
 //---------------------------------------------------------------------------
@@ -639,4 +565,11 @@ void __fastcall TfrmMain::OnProgress(const DxCore::TIDEInfoPtr& ide,
 void __fastcall TfrmMain::OnProgressState(const String& stateText)
 {
     FProgressForm->UpdateProgressState(stateText);
+}
+
+//---------------------------------------------------------------------------
+void TfrmMain::OnInstallComplete(bool success, const String& message)
+{
+    // Called from main thread when async operation completes
+    FProgressForm->OnComplete(success, message);
 }

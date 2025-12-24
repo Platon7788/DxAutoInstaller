@@ -409,10 +409,11 @@ TIDEInfoPtr TIDEDetector::ParseIDEFromRegistry(const String& bdsVersion)
     ide->SupportsWin32 = FileExists(ide->GetDCC32Path());
     ide->SupportsWin64 = FileExists(ide->GetDCC64Path());
     
-    // Win64 Modern (dcc64x) - NOT AVAILABLE for Delphi packages!
-    // dcc64x.exe does not exist - it's only bcc64x.exe for C++Builder
-    // For Delphi packages (.dpk), we only have dcc32 and dcc64
-    ide->SupportsWin64Modern = false;
+    // Win64 Modern (COFF format) - available in RAD Studio 12+ (BDS 23.0+)
+    // Uses dcc64 with -jf:coffi flag to generate .lib in COFF format
+    // This is supported if Win64 is supported and IDE version is 12+
+    int bdsNum = StrToIntDef(bdsVersion.SubString(1, bdsVersion.Pos(L".") - 1), 0);
+    ide->SupportsWin64Modern = ide->SupportsWin64 && (bdsNum >= 23);
     
     // Check if IDE supports 64-bit mode (RAD Studio 12+)
     // For RS12+, 64-bit IDE is always available as an option
@@ -460,8 +461,7 @@ TIDEInfoPtr TIDEDetector::ParseIDEFromRegistry(const String& bdsVersion)
         ide->Personality = TIDEPersonality::Both;
     }
     
-    // Extract product version
-    int bdsNum = StrToIntDef(bdsVersion.SubString(1, bdsVersion.Pos(L".") - 1), 0);
+    // Extract product version (bdsNum already defined above)
     if (bdsNum == 23)
         ide->ProductVersion = L"12.0";  // RAD Studio 12
     else if (bdsNum == 37)

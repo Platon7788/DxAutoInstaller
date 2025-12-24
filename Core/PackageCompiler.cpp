@@ -53,7 +53,10 @@ String TPackageCompiler::GetCompilerPath(const TIDEInfoPtr& ide, TIDEPlatform pl
         case TIDEPlatform::Win64:
             return ide->GetDCC64Path();
         case TIDEPlatform::Win64Modern:
-            return ide->GetDCC64XPath();
+            // For Win64Modern we still use dcc64 (Delphi compiler)
+            // but with -jf:coffi flag to generate COFF .lib files
+            // dcc64x doesn't exist - it's bcc64x for C++ only
+            return ide->GetDCC64Path();
         default:
             return L"";
     }
@@ -68,7 +71,9 @@ bool TPackageCompiler::IsPlatformSupported(const TIDEInfoPtr& ide, TIDEPlatform 
         case TIDEPlatform::Win64:
             return ide->SupportsWin64;
         case TIDEPlatform::Win64Modern:
-            return ide->SupportsWin64Modern;
+            // Win64Modern uses dcc64 with -jf:coffi flag
+            // So it's supported if Win64 is supported
+            return ide->SupportsWin64;
         default:
             return false;
     }
@@ -165,7 +170,18 @@ String TPackageCompiler::BuildCommandLine(const TIDEInfoPtr& ide,
     // C++Builder options
     if (options.GenerateCppFiles)
     {
+        // -JL generates .hpp, .bpi, .bpl and import library:
+        // - For Win32: generates .lib (OMF format)
+        // - For Win64: generates .a (ELF format) by default
+        // - For Win64 with -jf:coffi: generates .lib (COFF format for Modern toolchain)
         cmd = cmd + L" " + CompilerOptions::GENERATE_CPP;
+        
+        // For Win64Modern platform, add -jf:coffi to generate .lib in COFF format
+        // instead of .a in ELF format
+        if (platform == TIDEPlatform::Win64Modern)
+        {
+            cmd = cmd + L" -jf:coffi";
+        }
         
         if (!options.DCPOutputDir.IsEmpty())
         {

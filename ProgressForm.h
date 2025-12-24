@@ -38,6 +38,7 @@ private:
     String FCurrentTarget;
     std::unique_ptr<TStringList> FTargetLogs;
     int FErrorCount;
+    bool FIsRunning;  // Track if operation is in progress
     
     void SaveLogToFile();
     
@@ -52,6 +53,7 @@ public:
                         const String& task,
                         const String& target);
     void UpdateProgressState(const String& stateText);
+    void OnComplete(bool success, const String& message);
 };
 
 //---------------------------------------------------------------------------
