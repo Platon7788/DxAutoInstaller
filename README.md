@@ -74,8 +74,8 @@ Automatically registers paths in IDE for all platforms:
 | C++ Library Path (Win64/Win64x) | `C++\Paths\{Platform}\LibraryPath` |
 | C++ Include Path (Win32 Modern) | `C++\Paths\Win32\IncludePath_Clang` |
 | C++ Library Path (Win32 Modern) | `C++\Paths\Win32\LibraryPath_Clang` |
-| C++ Include Path (Win32 Classic) | `C++\Paths\Win32\Classic\IncludePath` |
-| C++ Library Path (Win32 Classic) | `C++\Paths\Win32\Classic\LibraryPath` |
+| C++ Include Path (Win32 Classic) | `C++\Paths\Win32\IncludePath` |
+| C++ Library Path (Win32 Classic) | `C++\Paths\Win32\LibraryPath` |
 
 ### 🛠️ Building
 
@@ -140,8 +140,8 @@ Automatically registers paths in IDE for all platforms:
 | C++ Library Path (Win64/Win64x) | `C++\Paths\{Platform}\LibraryPath` |
 | C++ Include Path (Win32 Modern) | `C++\Paths\Win32\IncludePath_Clang` |
 | C++ Library Path (Win32 Modern) | `C++\Paths\Win32\LibraryPath_Clang` |
-| C++ Include Path (Win32 Classic) | `C++\Paths\Win32\Classic\IncludePath` |
-| C++ Library Path (Win32 Classic) | `C++\Paths\Win32\Classic\LibraryPath` |
+| C++ Include Path (Win32 Classic) | `C++\Paths\Win32\IncludePath` |
+| C++ Library Path (Win32 Classic) | `C++\Paths\Win32\LibraryPath` |
 
 ### 🛠️ Сборка
 

@@ -1728,8 +1728,9 @@ void TInstaller::AddToCppPath(const TIDEInfoPtr& ide,
     LogToFile(L"  Type: " + baseValueName);
     
     // For Win32, we need to add to BOTH Modern (Clang) and Classic compiler paths
-    // Win32 Modern uses: LibraryPath_Clang / BrowsingPath_Clang in C++\Paths\Win32
-    // Win32 Classic uses: LibraryPath / BrowsingPath in C++\Paths\Win32\Classic
+    // All Win32 C++ paths are in the same registry key: C++\Paths\Win32
+    // Win32 Modern (bcc32c): IncludePath_Clang, LibraryPath_Clang, BrowsingPath_Clang
+    // Win32 Classic (bcc32): IncludePath, LibraryPath, BrowsingPath
     // Win64/Win64x use: LibraryPath / BrowsingPath in C++\Paths\{Platform}
     
     struct PathInfo {
@@ -1741,10 +1742,10 @@ void TInstaller::AddToCppPath(const TIDEInfoPtr& ide,
     
     if (platform == TIDEPlatform::Win32)
     {
-        // Win32 Modern (Clang) - uses _Clang suffix
+        // Win32 Modern (Clang) - uses _Clang suffix in C++\Paths\Win32
         paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", baseValueName + L"_Clang"});
-        // Win32 Classic - uses standard name in Classic subfolder
-        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", baseValueName});
+        // Win32 Classic - uses standard name (no suffix) in same C++\Paths\Win32 key
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", baseValueName});
     }
     else
     {
@@ -1801,8 +1802,9 @@ void TInstaller::AddToCppIncludePath(const TIDEInfoPtr& ide,
     LogToFile(L"  Platform: " + platformKey);
     
     // For Win32, we need to add to BOTH Modern (Clang) and Classic compiler paths
-    // Win32 Modern uses: IncludePath_Clang in C++\Paths\Win32
-    // Win32 Classic uses: IncludePath in C++\Paths\Win32\Classic
+    // All Win32 C++ paths are in the same registry key: C++\Paths\Win32
+    // Win32 Modern (bcc32c): IncludePath_Clang
+    // Win32 Classic (bcc32): IncludePath
     // Win64/Win64x use: IncludePath in C++\Paths\{Platform}
     
     struct PathInfo {
@@ -1814,10 +1816,10 @@ void TInstaller::AddToCppIncludePath(const TIDEInfoPtr& ide,
     
     if (platform == TIDEPlatform::Win32)
     {
-        // Win32 Modern (Clang) - uses _Clang suffix
+        // Win32 Modern (Clang) - uses _Clang suffix in C++\Paths\Win32
         paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", L"IncludePath_Clang"});
-        // Win32 Classic - uses standard name in Classic subfolder
-        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", L"IncludePath"});
+        // Win32 Classic - uses standard name (no suffix) in same C++\Paths\Win32 key
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", L"IncludePath"});
     }
     else
     {
@@ -1882,8 +1884,10 @@ void TInstaller::RemoveFromCppIncludePath(const TIDEInfoPtr& ide,
     
     if (platform == TIDEPlatform::Win32)
     {
+        // Win32 Modern (Clang) - uses _Clang suffix in C++\Paths\Win32
         paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", L"IncludePath_Clang"});
-        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", L"IncludePath"});
+        // Win32 Classic - uses standard name (no suffix) in same C++\Paths\Win32 key
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", L"IncludePath"});
     }
     else
     {
@@ -1972,8 +1976,10 @@ void TInstaller::RemoveFromCppPath(const TIDEInfoPtr& ide,
     
     if (platform == TIDEPlatform::Win32)
     {
+        // Win32 Modern (Clang) - uses _Clang suffix in C++\Paths\Win32
         paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", baseValueName + L"_Clang"});
-        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32\\Classic", baseValueName});
+        // Win32 Classic - uses standard name (no suffix) in same C++\Paths\Win32 key
+        paths.push_back({ide->RegistryKey + L"\\C++\\Paths\\Win32", baseValueName});
     }
     else
     {
