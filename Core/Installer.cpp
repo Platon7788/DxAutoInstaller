@@ -1312,7 +1312,11 @@ void TInstaller::CompilePackage(const TIDEInfoPtr& ide,
     
     if (!package->Exists)
         return;
-        
+
+    // Win64x (Modern) only needs runtime packages - no design-time IDE exists for Win64x
+    if (platform == TIDEPlatform::Win64Modern && package->Usage == TPackageUsage::DesigntimeOnly)
+        return;
+
     // Check third-party dependencies
     TThirdPartyComponentSet tpc = GetThirdPartyComponents(ide);
     switch (package->Category)
