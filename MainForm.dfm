@@ -4,8 +4,8 @@ object frmMain: TfrmMain
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
   Caption = 'DxAutoInstaller'
-  ClientHeight = 608
-  ClientWidth = 802
+  ClientHeight = 613
+  ClientWidth = 792
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -2008,20 +2008,21 @@ object frmMain: TfrmMain
     50FFD8C650FFD8C650FED8C650BA000000000000000000000000000000000000
     0000000000000000000000000000000000000000000000000000000000000000
     0000000000000000000000000000}
-  Position = poScreenCenter
+  Position = poDesktopCenter
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   TextHeight = 15
   object PanelTop: TPanel
     Left = 0
     Top = 0
-    Width = 802
+    Width = 792
     Height = 60
     Align = alTop
     BevelOuter = bvNone
     Color = clWhite
     ParentBackground = False
     TabOrder = 0
+    ExplicitWidth = 802
     object LblAppName: TLabel
       Left = 16
       Top = 10
@@ -2052,12 +2053,14 @@ object frmMain: TfrmMain
   object PageFuns: TPageControl
     Left = 0
     Top = 60
-    Width = 802
-    Height = 498
+    Width = 792
+    Height = 503
     ActivePage = TabInstall
     Align = alClient
     TabOrder = 1
     OnChange = PageFunsChange
+    ExplicitWidth = 802
+    ExplicitHeight = 498
     object TabInstall: TTabSheet
       Caption = 'Install'
       object LblSourceDir: TLabel
@@ -2215,7 +2218,7 @@ object frmMain: TfrmMain
           end
         end
         object GroupOtherOptions: TGroupBox
-          Left = -8
+          Left = 0
           Top = 295
           Width = 250
           Height = 100
@@ -2429,12 +2432,14 @@ object frmMain: TfrmMain
   end
   object PanelBottom: TPanel
     Left = 0
-    Top = 558
-    Width = 802
+    Top = 563
+    Width = 792
     Height = 50
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 2
+    ExplicitTop = 558
+    ExplicitWidth = 802
     object BtnRun: TButton
       Left = 510
       Top = 12
@@ -2467,5 +2472,13 @@ object frmMain: TfrmMain
       Caption = 'Exit'
       OnExecute = ActExitExecute
     end
+  end
+  object FolderOpenDialog: TFileOpenDialog
+    FavoriteLinks = <>
+    FileTypes = <>
+    Options = [fdoPickFolders, fdoPathMustExist]
+    Title = 'Select the folder with the DevExpress sources'
+    Left = 144
+    Top = 571
   end
 end

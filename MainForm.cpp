@@ -114,16 +114,12 @@ void TfrmMain::InitializeUninstallList()
 //---------------------------------------------------------------------------
 void TfrmMain::InitializeProfileInfo()
 {
-    auto profile = FInstaller->GetProfile();
-    
-    if (profile->IsCustomProfile())
-        LblCurrentProfile->Caption = L"Current Profile: <Custom>";
-    else
-        LblCurrentProfile->Caption = L"Current Profile: <Built-in>";
-        
     String customFile = DxCore::TProfileManager::GetCustomProfileFileName();
-    BtnDeleteProfile->Visible = FileExists(customFile);
-    BtnExportProfile->Visible = !FileExists(customFile);
+    LblCurrentProfile->Caption = L"Profile: " + customFile;
+    
+    BtnDeleteProfile->Visible = false;
+    BtnExportProfile->Caption = L"Reset Profile";
+    BtnExportProfile->Visible = true;
 }
 
 //---------------------------------------------------------------------------
@@ -367,16 +363,19 @@ void __fastcall TfrmMain::TargetCheckBoxClick(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TfrmMain::BtnBrowseClick(TObject *Sender)
 {
-    String dir;
-    if (SelectDirectory(L"Select DevExpress Source Directory", L"", dir))
+    if (!EditSourceDir->Text.IsEmpty())
+        FolderOpenDialog->DefaultFolder = EditSourceDir->Text;
+
+    if (FolderOpenDialog->Execute())
     {
+        String dir = IncludeTrailingPathDelimiter(FolderOpenDialog->FileName);
         EditSourceDir->Text = dir;
-        
+
         unsigned int buildNum = DxCore::TProfileManager::GetDxBuildNumber(dir);
         EditDxVersion->Text = DxCore::TProfileManager::GetDxBuildNumberAsVersion(buildNum);
-        
+
         Screen->Cursor = crHourGlass;
-        try
+        __try
         {
             FInstaller->SetInstallFileDir(dir);
             RefreshIDEList();
@@ -502,9 +501,17 @@ void __fastcall TfrmMain::ActExitExecute(TObject *Sender)
 void __fastcall TfrmMain::BtnExportProfileClick(TObject *Sender)
 {
     String fileName = DxCore::TProfileManager::GetCustomProfileFileName();
+    if (FileExists(fileName))
+    {
+        if (MessageDlg(L"Reset Profile.ini to built-in defaults?\n\nYour changes will be lost.",
+            mtConfirmation, TMsgDlgButtons() << mbYes << mbNo, 0) != mrYes)
+            return;
+    }
     FInstaller->GetProfile()->ExportBuiltInProfile(fileName);
+    FInstaller->GetProfile()->LoadFromFile(fileName);
     InitializeProfileInfo();
-    ShowMessage(L"Profile exported to: " + fileName);
+    RefreshComponentList();
+    ShowMessage(L"Profile reset to built-in defaults: " + fileName);
 }
 
 //---------------------------------------------------------------------------

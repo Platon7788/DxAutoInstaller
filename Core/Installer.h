@@ -288,6 +288,11 @@ public:
     void SetOnProgress(TProgressCallback callback) { FOnProgress = callback; }
     void SetOnProgressState(TProgressStateCallback callback) { FOnProgressState = callback; }
     void SetOnComplete(TCompletionCallback callback) { FOnComplete = callback; }
+    
+    // Log file access (for appending summary from ProgressForm)
+    static String GetCurrentLogFileName();
+    static void AppendToLogFile(const String& msg);
+    static void CloseLogFile();
 };
 
 //---------------------------------------------------------------------------

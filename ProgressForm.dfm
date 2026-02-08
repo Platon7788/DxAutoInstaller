@@ -2,7 +2,7 @@ object frmProgress: TfrmProgress
   Left = 0
   Top = 0
   Caption = 'DxAutoInstaller'
-  ClientHeight = 400
+  ClientHeight = 475
   ClientWidth = 700
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -2014,7 +2014,7 @@ object frmProgress: TfrmProgress
     Left = 0
     Top = 0
     Width = 700
-    Height = 50
+    Height = 73
     Align = alTop
     BevelOuter = bvNone
     Color = clWhite
@@ -2034,12 +2034,40 @@ object frmProgress: TfrmProgress
       Font.Style = []
       ParentFont = False
     end
+    object LblWarnings: TLabel
+      Left = 16
+      Top = 48
+      Width = 66
+      Height = 15
+      Caption = 'LblWarnings'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clYellow
+      Font.Height = -12
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentFont = False
+    end
+    object LblErrors: TLabel
+      Left = 416
+      Top = 48
+      Width = 46
+      Height = 15
+      Caption = 'LblErrors'
+      Color = clRed
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clRed
+      Font.Height = -12
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentColor = False
+      ParentFont = False
+    end
   end
   object PanelLogs: TPanel
     Left = 0
-    Top = 50
+    Top = 73
     Width = 700
-    Height = 300
+    Height = 352
     Align = alClient
     BevelOuter = bvNone
     Padding.Left = 8
@@ -2047,11 +2075,13 @@ object frmProgress: TfrmProgress
     Padding.Right = 8
     Padding.Bottom = 8
     TabOrder = 1
+    ExplicitTop = 50
+    ExplicitHeight = 300
     object MemoLogs: TMemo
       Left = 8
       Top = 8
       Width = 684
-      Height = 284
+      Height = 336
       Align = alClient
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
@@ -2062,16 +2092,18 @@ object frmProgress: TfrmProgress
       ReadOnly = True
       ScrollBars = ssVertical
       TabOrder = 0
+      ExplicitHeight = 284
     end
   end
   object PanelBottom: TPanel
     Left = 0
-    Top = 350
+    Top = 425
     Width = 700
     Height = 50
     Align = alBottom
     BevelOuter = bvNone
     TabOrder = 2
+    ExplicitTop = 350
     object BtnAction: TButton
       Left = 596
       Top = 12

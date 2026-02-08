@@ -132,6 +132,11 @@ String TInstaller::FindPackageFile(const String& packagesDir,
     if (FileExists(dPath))
         return dPath;
     
+    // Try plain name for packages using {$LIBSUFFIX AUTO} (e.g., SynEditDR.dpk)
+    String plainPath = TPath::Combine(packagesDir, pkgBaseName + L".dpk");
+    if (FileExists(plainPath))
+        return plainPath;
+    
     // No match found
     return L"";
 }
@@ -214,23 +219,24 @@ void TInstaller::BuildComponentList(const TIDEInfoPtr& ide)
 {
     TComponentList& list = FComponents[ide->BDSVersion];
     list.clear();
-    
+
     String ideSuffix = TProfileManager::GetIDEVersionNumberStr(ide);
-    
+
+    // Phase 1: Load all components and their packages
     for (const auto& profile : FProfile->GetComponents())
     {
         auto component = std::make_shared<TComponent>(profile);
-        
+
         // Get packages directory
         String packagesDir = TProfileManager::GetComponentPackagesDir(
             FInstallFileDir, profile->ComponentName);
-        
+
         // Create required packages
         for (int i = 0; i < profile->RequiredPackages->Count; i++)
         {
             String pkgBaseName = profile->RequiredPackages->Strings[i];
             String fullPath = FindPackageFile(packagesDir, pkgBaseName, ideSuffix);
-                
+
             if (!fullPath.IsEmpty() && FileExists(fullPath))
             {
                 auto pkg = std::make_shared<TPackage>(fullPath);
@@ -238,13 +244,13 @@ void TInstaller::BuildComponentList(const TIDEInfoPtr& ide)
                 component->Packages.push_back(pkg);
             }
         }
-        
+
         // Create optional packages
         for (int i = 0; i < profile->OptionalPackages->Count; i++)
         {
             String pkgBaseName = profile->OptionalPackages->Strings[i];
             String fullPath = FindPackageFile(packagesDir, pkgBaseName, ideSuffix);
-                
+
             if (!fullPath.IsEmpty() && FileExists(fullPath))
             {
                 auto pkg = std::make_shared<TPackage>(fullPath);
@@ -252,18 +258,77 @@ void TInstaller::BuildComponentList(const TIDEInfoPtr& ide)
                 component->Packages.push_back(pkg);
             }
         }
-        
+
         // Set component state
         String compDir = TProfileManager::GetComponentDir(FInstallFileDir, profile->ComponentName);
         if (!DirectoryExists(compDir))
             component->State = TComponentState::NotFound;
         else if (component->GetExistsPackageCount() == 0)
             component->State = TComponentState::NotSupported;
-            
+
         list.push_back(component);
     }
-    
-    // Build dependencies between components
+
+    // Phase 2: Build global package map for dependency resolution
+    // Map: packageName -> {component, package}
+    std::map<String, std::pair<TComponentPtr, TPackagePtr>> globalPackageMap;
+    for (auto& comp : list)
+    {
+        for (auto& pkg : comp->Packages)
+        {
+            globalPackageMap[pkg->Name] = std::make_pair(comp, pkg);
+        }
+    }
+
+    // Phase 3: Auto-resolve package dependencies
+    // If a Required package needs an Optional package, mark it as Required
+    bool changed = true;
+    int iterations = 0;
+    const int maxIterations = 100; // Prevent infinite loops
+
+    while (changed && iterations < maxIterations)
+    {
+        changed = false;
+        iterations++;
+
+        for (auto& comp : list)
+        {
+            for (auto& pkg : comp->Packages)
+            {
+                if (!pkg->Required || !pkg->Exists)
+                    continue;
+
+                // Check each package in the requires list
+                for (int i = 0; i < pkg->Requires->Count; i++)
+                {
+                    String requiredPkgName = pkg->Requires->Strings[i];
+
+                    // Find this package in our global map
+                    auto it = globalPackageMap.find(requiredPkgName);
+                    if (it != globalPackageMap.end())
+                    {
+                        TPackagePtr& requiredPkg = it->second.second;
+
+                        // If the required package is Optional, make it Required
+                        if (!requiredPkg->Required)
+                        {
+                            requiredPkg->Required = true;
+                            changed = true;
+                            LogToFile(L"Auto-dependency: " + pkg->Name + L" requires " +
+                                      requiredPkgName + L" -> marking as Required");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (iterations >= maxIterations)
+    {
+        LogToFile(L"WARNING: Auto-dependency resolution reached max iterations!");
+    }
+
+    // Phase 4: Build dependencies between components
     for (auto& comp : list)
     {
         for (auto& pkg : comp->Packages)
@@ -272,14 +337,14 @@ void TInstaller::BuildComponentList(const TIDEInfoPtr& ide)
             {
                 if (otherComp.get() == comp.get())
                     continue;
-                    
+
                 for (auto& otherPkg : otherComp->Packages)
                 {
                     if (pkg->Requires->IndexOf(otherPkg->Name) >= 0)
                     {
                         if (pkg->Required)
                         {
-                            auto it = std::find(comp->ParentComponents.begin(), 
+                            auto it = std::find(comp->ParentComponents.begin(),
                                                comp->ParentComponents.end(),
                                                otherComp.get());
                             if (it == comp->ParentComponents.end())
@@ -294,8 +359,8 @@ void TInstaller::BuildComponentList(const TIDEInfoPtr& ide)
             }
         }
     }
-    
-    // Update missing state
+
+    // Phase 5: Update missing state
     for (auto& comp : list)
     {
         if (comp->State == TComponentState::Install && comp->IsMissingDependents())
@@ -1304,15 +1369,11 @@ void TInstaller::CompilePackage(const TIDEInfoPtr& ide,
     options.DCPOutputDir = ide->GetDCPOutputPath(platform);
     options.UnitOutputDir = GetInstallLibraryDir(FInstallFileDir, ide, platform);
     
-    LogToFile(L"  BPLOutputDir: [" + options.BPLOutputDir + L"]");
-    LogToFile(L"  DCPOutputDir: [" + options.DCPOutputDir + L"]");
-    LogToFile(L"  UnitOutputDir: [" + options.UnitOutputDir + L"]");
-    
-    // Debug output - show paths
-    UpdateProgressState(L"BPL Output: " + options.BPLOutputDir);
-    UpdateProgressState(L"DCP Output: " + options.DCPOutputDir);
-    UpdateProgressState(L"Unit Output: " + options.UnitOutputDir);
-    
+    // Log paths to file only (not UI - reduces overhead)
+    LogToFile(L"  BPL: " + options.BPLOutputDir);
+    LogToFile(L"  DCP: " + options.DCPOutputDir);
+    LogToFile(L"  DCU: " + options.UnitOutputDir);
+
     // Safety check - all paths must be valid
     if (options.BPLOutputDir.IsEmpty() || options.DCPOutputDir.IsEmpty() || options.UnitOutputDir.IsEmpty())
     {
@@ -2166,6 +2227,22 @@ void TInstaller::SetEnvironmentVariable(const TIDEInfoPtr& ide, const String& na
         }
         reg->CloseKey();
     }
+}
+
+String TInstaller::GetCurrentLogFileName()
+{
+    return GetLogFileName();
+}
+
+void TInstaller::AppendToLogFile(const String& msg)
+{
+    LogToFile(msg);
+}
+
+void TInstaller::CloseLogFile()
+{
+    if (g_LogFile.is_open())
+        g_LogFile.close();
 }
 
 void TInstaller::SearchNewPackages(TStringList* list)

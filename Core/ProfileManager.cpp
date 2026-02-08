@@ -30,16 +30,10 @@ void TProfileManager::LoadFromFile(const String& fileName)
 void TProfileManager::LoadFromResource()
 {
     String customFile = GetCustomProfileFileName();
-    if (FileExists(customFile))
-    {
-        FFileName = customFile;
-    }
-    else
-    {
-        FFileName = TPath::GetTempFileName();
-        ExportBuiltInProfile(FFileName);
-    }
+    if (!FileExists(customFile))
+        ExportBuiltInProfile(customFile);
     
+    FFileName = customFile;
     LoadComponents();
 }
 
@@ -110,7 +104,11 @@ void TProfileManager::StrToList(const String& s, TStringList* list)
 
 bool TProfileManager::IsCustomProfile() const
 {
-    return FFileName == GetCustomProfileFileName();
+    // Profile is always stored next to the executable now.
+    // Consider it "custom" (user-edited) when file timestamp
+    // differs from the initial export, but for simplicity
+    // always return true since the file is always external.
+    return FileExists(FFileName);
 }
 
 String TProfileManager::GetCustomProfileFileName()

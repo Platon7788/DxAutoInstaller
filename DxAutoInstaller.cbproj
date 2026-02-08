@@ -166,6 +166,10 @@
             <DependentOn>Core\Component.h</DependentOn>
             <BuildOrder>4</BuildOrder>
         </CppCompile>
+        <CppCompile Include="Core\ErrorTypes.cpp">
+            <DependentOn>Core\ErrorTypes.h</DependentOn>
+            <BuildOrder>8</BuildOrder>
+        </CppCompile>
         <CppCompile Include="Core\IDEDetector.cpp">
             <DependentOn>Core\IDEDetector.h</DependentOn>
             <BuildOrder>3</BuildOrder>

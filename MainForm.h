@@ -98,6 +98,7 @@ __published:
     TLinkLabel *LinkEmail;
     TMemo *MemoChangelog;
 	TCheckBox *ChkTargetWin64x;
+	TFileOpenDialog *FolderOpenDialog;
     
     void __fastcall FormCreate(TObject *Sender);
     void __fastcall FormDestroy(TObject *Sender);
